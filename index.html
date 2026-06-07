@@ -689,18 +689,35 @@
                 const prompt = fam.isLegendary ? fam.prompts[0] : fam.prompts[stage];
                 if (!prompt) return;
                 setPetImgGenerating(key);
+                // 嘗試順序：imagen-3 → gemini-2.0-flash-preview-image-generation → gemini-2.0-flash-exp
+                const MODELS = [
+                    { url: `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${userApiKey}`,
+                      body: JSON.stringify({ instances:[{prompt}], parameters:{sampleCount:1} }),
+                      parse: d => { const b = d?.predictions?.[0]?.bytesBase64Encoded; return b ? `data:image/png;base64,${b}` : null; } },
+                    { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${userApiKey}`,
+                      body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{responseModalities:['IMAGE','TEXT']} }),
+                      parse: d => { const p = (d?.candidates?.[0]?.content?.parts||[]).find(x=>x.inlineData); return p ? `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` : null; } },
+                    { url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${userApiKey}`,
+                      body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{responseModalities:['IMAGE','TEXT']} }),
+                      parse: d => { const p = (d?.candidates?.[0]?.content?.parts||[]).find(x=>x.inlineData); return p ? `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` : null; } },
+                ];
                 try {
-                    const resp = await fetch(
-                        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${userApiKey}`,
-                        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text: prompt}]}], generationConfig:{responseModalities:['IMAGE','TEXT']} }) }
-                    );
-                    const data = await resp.json();
-                    const imgPart = (data?.candidates?.[0]?.content?.parts || []).find(p => p.inlineData);
-                    if (imgPart) {
-                        const dataUrl = `data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`;
+                    let dataUrl = null;
+                    let lastErr = '';
+                    for (const m of MODELS) {
+                        const resp = await fetch(m.url, { method:'POST', headers:{'Content-Type':'application/json'}, body: m.body });
+                        const data = await resp.json();
+                        if (data.error) { lastErr = data.error.message; continue; }
+                        dataUrl = m.parse(data);
+                        if (dataUrl) break;
+                        lastErr = 'no image in response';
+                    }
+                    if (dataUrl) {
                         setPetImages(prev => ({ ...prev, [key]: dataUrl }));
                         await PetImgDB.set(key, dataUrl);
-                    } else { alert('Gemini 無法生成圖片，請確認 API Key 有圖片生成權限'); }
+                    } else {
+                        alert('圖片生成失敗。\n\n最後錯誤：' + lastErr + '\n\n請確認：\n1. API Key 正確且有效\n2. Google AI Studio 帳號已啟用 Imagen / 圖片生成功能\n3. 可能需要綁定信用卡（Imagen 3 需付費方案）');
+                    }
                 } catch(e) { alert('生成失敗：' + e.message); }
                 finally { setPetImgGenerating(null); }
             };
