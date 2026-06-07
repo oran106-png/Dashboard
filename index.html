@@ -95,6 +95,7 @@
             Play: (p) => <IconBase {...p}><polygon points="5 3 19 12 5 21 5 3" /></IconBase>,
             Pause: (p) => <IconBase {...p}><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></IconBase>,
             RotateCcw: (p) => <IconBase {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></IconBase>,
+            RefreshCw: (p) => <IconBase {...p}><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></IconBase>,
             Clock: (p) => <IconBase {...p}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></IconBase>,
             Timer: (p) => <IconBase {...p}><line x1="10" y1="2" x2="14" y2="2" /><line x1="12" y1="14" x2="15" y2="11" /><circle cx="12" cy="14" r="8" /></IconBase>,
             School: (p) => <IconBase {...p}><path d="m4 6 8-4 8 4" /><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2" /><path d="M14 22v-4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v4" /><path d="M18 5v17" /><path d="M6 5v17" /><circle cx="12" cy="9" r="2" /></IconBase>,
@@ -151,34 +152,95 @@
         };
 
         // 寵物進化門檻（三階）：0 分起為幼年體、達 40 分進化中階、達 100 分為最終體
-        const PET_THRESHOLDS = [0, 40, 100];
-        // 原創寵物家族：12 種屬性，各三階進化（名稱／emoji／屬性／主題色／圖鑑說明）
-        const PET_FAMILIES = [
-            { type: '草', names: ['芽芽鼠','葉葉狐','森靈王'], emoji: ['🌱','🦊','🌳'], theme: 'rose', desc: '吸收陽光成長，進化後能讓整片教室生機盎然。' },
-            { type: '火', names: ['火苗喵','焰焰獅','炎王獸'], emoji: ['🔥','🐱','🦁'], theme: 'orange', desc: '尾巴的火焰代表幹勁，越努力燒得越旺。' },
-            { type: '水', names: ['水珠龜','浪潮龜','海皇龜'], emoji: ['💧','🐢','🐳'], theme: 'blue', desc: '冷靜沉穩，最終能掀起守護同伴的滔天巨浪。' },
-            { type: '電', names: ['電電鼠','雷頰鼠','雷神鼠'], emoji: ['⚡','🐭','🐹'], theme: 'amber', desc: '反應神速，臉頰會在答對題目時放電。' },
-            { type: '蟲', names: ['葉葉蟲','搖搖繭','霓彩蝶'], emoji: ['🐛','🟫','🦋'], theme: 'lime', desc: '默默累積，破繭而出時最讓人驚艷。' },
-            { type: '飛', names: ['羽羽雀','疾風鷹','蒼穹鵬'], emoji: ['🐤','🦅','🦤'], theme: 'sky', desc: '嚮往天空，進化後能翱翔到任何想去的地方。' },
-            { type: '幽靈', names: ['燭火靈','提燈鬼','冥府王'], emoji: ['👻','🕯️','💀'], theme: 'purple', desc: '夜裡守護教室的小精靈，調皮又溫柔。' },
-            { type: '岩', names: ['石石龜','岩甲獸','山岳神'], emoji: ['🪨','🐢','⛰️'], theme: 'stone', desc: '堅毅不拔，是同伴最可靠的後盾。' },
-            { type: '冰', names: ['雪雪兔','冰晶狼','霜華王'], emoji: ['❄️','🐰','🐺'], theme: 'cyan', desc: '純淨冷靜，能在最熱的時刻保持頭腦清醒。' },
-            { type: '龍', names: ['幼幼龍','翔翔龍','帝王龍'], emoji: ['🥚','🐲','🐉'], theme: 'indigo', desc: '稀有的傳說之力，潛能無可限量。' },
-            { type: '妖精', names: ['花精靈','蝶妖精','百花后'], emoji: ['🧚','🌸','👑'], theme: 'pink', desc: '帶來好心情的小精靈，笑容有療癒的魔力。' },
-            { type: '格鬥', names: ['拳拳袋','鬥士猴','霸拳王'], emoji: ['🥊','🐵','🦍'], theme: 'red', desc: '永不放棄，越挫越勇的熱血鬥士。' },
+        const PET_THRESHOLDS = [0, 40, 100]; // 幼年體, 中階體, 最終體（分數門檻）
+        // 30族三階進化 + 6隻傳說寵物，每族附 AI 生成 prompt
+        const PET_FAMILIES_RAW = [
+            [['芽芽鼠','葉葉狐','森靈王'],'草',['🌱','🦊','🌳'],'吸收陽光成長，進化後能讓整片教室生機盎然。',
+                ['A cute grass-type sprout mouse original fantasy pet, tiny leaf ears, bright green fur, holding a small flower, chibi style, original classroom pet game art style, white background','A grass-type leaf fox original fantasy pet, lush green fur with leaf-pattern markings, bushy leaf-tail, alert agile pose, original classroom pet game art style, white background','A majestic grass-type forest spirit king original fantasy pet, ancient oak tree growing from its back, glowing amber eyes, radiating life energy, epic guardian stance, original classroom pet game art style, white background']],
+            [['火苗喵','焰焰獅','炎王獸'],'火',['🔥','🐱','🦁'],'尾巴的火焰代表幹勁，越努力燒得越旺。',
+                ['A cute fire-type flame kitten original fantasy pet, tiny orange fire-tipped tail, ember eyes, playful pose, chibi style, original classroom pet game art style, white background','A fire-type blaze lion original fantasy pet, fiery mane crackling with heat, golden-orange fur, powerful confident stance, original classroom pet game art style, white background','A massive fire-type inferno beast king original fantasy pet, body covered in magma armor, volcanic crown, surrounded by raging pillars of flame, epic battle roar, original classroom pet game art style, white background']],
+            [['水珠龜','浪潮龜','海皇龜'],'水',['💧','🐢','🐳'],'冷靜沉穩，最終能掀起守護同伴的滔天巨浪。',
+                ['A cute water-type water-drop turtle original fantasy pet, blue crystal shell, water-droplet pattern, big curious eyes, chibi style, original classroom pet game art style, white background','A water-type wave turtle original fantasy pet, large waves crashing off its shell, swimming pose, serene expression, original classroom pet game art style, white background','A massive water-type ocean emperor turtle original fantasy pet, enormous ancient shell with ocean on its back, commanding waves, wise ancient eyes, epic presence, original classroom pet game art style, white background']],
+            [['電電鼠','雷頰鼠','雷神鼠'],'電',['⚡','🐭','🐹'],'反應神速，臉頰會在答對題目時放電。',
+                ['A cute electric-type tiny mouse original fantasy pet, lightning bolt-shaped tail, yellow cheeks sparkling, surprised expression, chibi style, original classroom pet game art style, white background','A electric-type thunder-cheek mouse original fantasy pet, chubby cheeks discharging electricity, yellow fur, quick running pose, sparks everywhere, original classroom pet game art style, white background','A powerful electric-type thunder god mouse original fantasy pet, crackling golden lightning aura, muscular build, storm clouds swirling behind it, mighty battle stance, original classroom pet game art style, white background']],
+            [['葉葉蟲','搖搖繭','霓彩蝶'],'蟲',['🐛','🟫','🦋'],'默默累積，破繭而出時最讓人驚艷。',
+                ['A cute bug-type leaf caterpillar original fantasy pet, plump green segmented body, leaf-shaped head, tiny round eyes, chibi style, original classroom pet game art style, white background','A bug-type cocoon original fantasy pet, silky brown chrysalis hanging from a twig, slight glow within, mysterious aura, original classroom pet game art style, white background','A gorgeous bug-type rainbow butterfly original fantasy pet, enormous iridescent wings with aurora patterns, graceful flying pose, trailing rainbow sparkles, original classroom pet game art style, white background']],
+            [['羽羽雀','疾風鷹','蒼穹鵬'],'飛行',['🐤','🦅','🦤'],'嚮往天空，進化後能翱翔到任何想去的地方。',
+                ['A cute flying-type fluffy chick original fantasy pet, round golden-yellow body, tiny wing nubs, cheerful curious face, chibi style, original classroom pet game art style, white background','A flying-type swift hawk original fantasy pet, sleek brown feathers, sharp golden eyes, wind streaks trailing dynamic dive pose, original classroom pet game art style, white background','A majestic flying-type sky roc original fantasy pet, massive wingspan spanning the horizon, blue and gold feathers, soaring through clouds, awe-inspiring presence, original classroom pet game art style, white background']],
+            [['燭火靈','提燈鬼','冥府王'],'幽靈',['👻','🕯️','💀'],'夜裡守護教室的小精靈，調皮又溫柔。',
+                ['A cute ghost-type candle flame spirit original fantasy pet, tiny round ghost body with a candle flame on its head, friendly glowing eyes, chibi style, original classroom pet game art style, white background','A ghost-type lantern ghost original fantasy pet, carrying a glowing blue lantern, mischievous grin, floating pose, purple ethereal mist, original classroom pet game art style, white background','A fearsome ghost-type underworld king original fantasy pet, dark crown of bone, purple shadow fire aura, commanding presence, spectral cape, levitating epic pose, original classroom pet game art style, white background']],
+            [['石石龜','岩甲獸','山岳神'],'岩石',['🪨','🐢','⛰️'],'堅毅不拔，是同伴最可靠的後盾。',
+                ['A cute rock-type pebble turtle original fantasy pet, grey rocky shell, tiny stone-textured skin, sturdy little legs, chibi style, original classroom pet game art style, white background','A rock-type stone armor beast original fantasy pet, body made of layered rock plates, mossy shell back, defensive crouched stance, original classroom pet game art style, white background','A massive rock-type mountain god original fantasy pet, body the size of a mountain, ancient stone runes carved into its skin, peaks growing from its back, original classroom pet game art style, white background']],
+            [['雪雪兔','冰晶狼','霜華王'],'冰',['❄️','🐰','🐺'],'純淨冷靜，能在最熱的時刻保持頭腦清醒。',
+                ['A cute ice-type snowball bunny original fantasy pet, pure white fluffy fur, ice-crystal ear tips, rosy cheeks, chibi style, original classroom pet game art style, white background','A ice-type ice crystal wolf original fantasy pet, coat glittering with frost crystals, blue glacier eyes, elegant silver-white fur, ready stance, original classroom pet game art style, white background','A majestic ice-type frost blossom king original fantasy pet, ice crown with snowflake patterns, fur rimed with eternal frost, icy wings of crystal, regal noble pose, original classroom pet game art style, white background']],
+            [['幼幼龍','翔翔龍','帝王龍'],'龍',['🥚','🐲','🐉'],'稀有的傳說之力，潛能無可限量。',
+                ['A cute dragon-type baby dragon egg cracking open original fantasy pet, golden shell with glittering cracks, tiny dragon head peeking out, chibi style, original classroom pet game art style, white background','A dragon-type young flying dragon original fantasy pet, sleek purple and blue scales, small horns, spreading wings mid-flight, energetic pose, original classroom pet game art style, white background','A legendary dragon-type emperor dragon original fantasy pet, massive golden-red scales, imposing twin horns, breath of golden fire, commanding lord of the skies, epic majestic pose, original classroom pet game art style, white background']],
+            [['花精靈','蝶妖精','百花后'],'妖精',['🧚','🌸','👑'],'帶來好心情的小精靈，笑容有療癒的魔力。',
+                ['A cute fairy-type flower sprite original fantasy pet, tiny glowing body, flower petal wings, rosy pink cheeks, holding a small bloom, chibi style, original classroom pet game art style, white background','A fairy-type butterfly fairy original fantasy pet, translucent butterfly wings covered in flower patterns, flowing pink dress, sprinkling sparkles, original classroom pet game art style, white background','A radiant fairy-type queen of all flowers original fantasy pet, crown of blossoms, enormous petal cape, surrounded by floating flowers, graceful magical energy, original classroom pet game art style, white background']],
+            [['拳拳袋','鬥士猴','霸拳王'],'格鬥',['🥊','🐵','🦍'],'永不放棄，越挫越勇的熱血鬥士。',
+                ['A cute fighting-type boxing joey original fantasy pet, tiny boxing gloves, determined baby face, fighting stance, chibi style, original classroom pet game art style, white background','A fighting-type warrior monkey original fantasy pet, brown fur, red headband, muscular build, powerful punch combo pose, original classroom pet game art style, white background','A massive fighting-type champion gorilla king original fantasy pet, enormous fists with golden gauntlets, fire energy knuckles, earth-cracking punch stance, gold championship belt, original classroom pet game art style, white background']],
+            [['毒牙蛇','沼毒蛇','毒皇蛇'],'毒',['🐍','🟣','🧟'],'分泌奇異毒素，最終進化成令所有人聞風喪膽的毒皇。',
+                ['A cute poison-type venomous baby snake original fantasy pet, purple and yellow scales, tiny venom drops from fangs, cute but dangerous look, chibi style, original classroom pet game art style, white background','A poison-type swamp snake original fantasy pet, dark purple body with toxic green markings, coiled in a swamp, glowing yellow slit eyes, original classroom pet game art style, white background','A massive poison-type venom emperor serpent original fantasy pet, crown of venom fangs, glowing toxic body, poison mist swirling, terrifying regal serpent king, original classroom pet game art style, white background']],
+            [['沙沙鼹','土盾犰狳','大地守衛'],'地面',['🐾','🦔','🗿'],'在土地深處修行，最終化身大地守護神。',
+                ['A cute ground-type sandy mole original fantasy pet, little dirt-covered paws, big shovel claws, peeking from underground, chibi style, original classroom pet game art style, white background','A ground-type earth shield armadillo original fantasy pet, layered brown earth-plate armor, rolled into a defensive ball, dust trail, original classroom pet game art style, white background','A towering ground-type earth guardian original fantasy pet, stone statue body with glowing runes, bearing the weight of the land, ancient protector aura, epic guardian pose, original classroom pet game art style, white background']],
+            [['念念貓','念力師','宇宙超尊'],'超能力',['🐱','🔮','🌌'],'用念力彎曲湯匙，最終能感知整個宇宙的意志。',
+                ['A cute psychic-type telepathy kitten original fantasy pet, pink fur, glowing purple eyes, levitating spoon with mind power, chibi style, original classroom pet game art style, white background','A psychic-type psychic master cat original fantasy pet, third eye on forehead, meditating in lotus pose, surrounded by floating glowing orbs, original classroom pet game art style, white background','A transcendent psychic-type cosmic supreme original fantasy pet, galaxy patterns on body, cosmic energy radiating, seeing all timelines, epic universe pose, original classroom pet game art style, white background']],
+            [['鐵皮甲蟲','鋼鐵輪','巨型要塞'],'鋼鐵',['⚙️','🔩','🏰'],'身體由精鋼鑄成，最終進化成無堅不摧的移動要塞。',
+                ['A cute steel-type iron-plate beetle original fantasy pet, shiny metal shell, small mechanical antennae, happy spinning in place, chibi style, original classroom pet game art style, white background','A steel-type steel wheel original fantasy pet, interlocking gear-like body, rolling at high speed, sparks flying, metallic sheen, original classroom pet game art style, white background','A massive steel-type giant fortress original fantasy pet, castle-like metal body, cannons on shoulders, impenetrable armor plating, moving unstoppably, epic iron guardian, original classroom pet game art style, white background']],
+            [['影影犬','嗜血狼','黑暗魔王'],'惡',['🐶','🐺','👺'],'藏在陰影中伺機而動，最終成為統御黑暗的惡之王。',
+                ['A cute dark-type shadow puppy original fantasy pet, black fur, purple glowing eyes, hiding in its own shadow, chibi style, original classroom pet game art style, white background','A dark-type bloodthirsty wolf original fantasy pet, black sleek fur, red glowing eyes, snarling in the shadows, threatening pose, original classroom pet game art style, white background','A terrifying dark-type dark demon king original fantasy pet, demonic horns, black shadow armor, cloak of darkness, purple shadow flames, ruler of shadows, epic malevolent pose, original classroom pet game art style, white background']],
+            [['毛毛熊','大懶熊','超級巨熊'],'一般',['🐾','🐻','🐼'],'看起來懶洋洋，危急時刻卻能爆發驚人力量。',
+                ['A cute normal-type fluffy bear cub original fantasy pet, round chubby body, soft brown fur, sleepy happy expression, chibi style, original classroom pet game art style, white background','A normal-type giant lazy bear original fantasy pet, enormous fluffy body, satisfied expression, holding a honey pot, relaxed sitting pose, original classroom pet game art style, white background','A colossal normal-type super giant bear original fantasy pet, massive fluffy white body, gentle but unstoppable, warmly roaring, white background, original classroom pet game art style']],
+            [['浮水雛','浪花鴨','海天霸鵬'],'水/飛',['🐥','🦆','🐋'],'在水面飛翔的鳥，最終進化成遨遊天際的海中霸者。',
+                ['A cute water-flying-type floating baby duck original fantasy pet, round blue-white body, floating on a bubble, small wing flaps, chibi style, original classroom pet game art style, white background','A water-flying-type wave duck original fantasy pet, surfing on ocean waves, spreading wings, blue and white feathers, agile mid-air pose, original classroom pet game art style, white background','A majestic water-flying-type ocean-sky dominator original fantasy pet, enormous wings made of crashing waves, commanding the skies and seas, original classroom pet game art style, white background']],
+            [['焰羽雛','熱炎鷹','烈焰火鳳'],'火/飛',['🐦','🦅','🦅'],'羽毛帶著火焰之力，最終化身為永生不滅的火鳳凰。',
+                ['A cute fire-flying-type flame feather chick original fantasy pet, golden feathers tipped with tiny flames, bright cheerful eyes, chibi style, original classroom pet game art style, white background','A fire-flying-type blazing eagle original fantasy pet, red and orange fire-streaked feathers, fierce golden eyes, diving through flames, original classroom pet game art style, white background','A magnificent fire-flying-type eternal flame phoenix original fantasy pet, wings of golden fire, born again from ashes, radiant solar energy, legendary eternal bird, glorious soaring pose, original classroom pet game art style, white background']],
+            [['花苞獸','毒蘭獸','百毒花皇'],'草/毒',['🌱','🌺','🥀'],'看似嬌嫩的花朵其實暗藏劇毒，最終成為毒花皇后。',
+                ['A cute grass-poison-type flower bud beast original fantasy pet, small plant body, purple flower bud on head, innocent looks hiding toxicity, chibi style, original classroom pet game art style, white background','A grass-poison-type toxic orchid beast original fantasy pet, blooming purple flowers on body, releasing sweet toxic pollen, beautiful yet dangerous, original classroom pet game art style, white background','A massive grass-poison-type hundred-poison flower empress original fantasy pet, enormous rafflesia body, dripping purple poison from petals, queen of toxic garden, menacing beautiful stance, original classroom pet game art style, white background']],
+            [['磁力球','電磁怪','超電導神'],'電/鋼',['🔋','⚡','🤖'],'渾身電流通過鋼鐵身軀，最終成為超電導能量神。',
+                ['A cute electric-steel-type magnetic ball original fantasy pet, round metallic body, horseshoe magnet arms, sparking electricity, single happy eye, chibi style, original classroom pet game art style, white background','A electric-steel-type electromagnetic monster original fantasy pet, cluster of magnetic spheres joined by lightning bolts, crackling energy, hovering in place, original classroom pet game art style, white background','A towering electric-steel-type superconductor god original fantasy pet, giant robot body held together by blue electromagnetic energy, glowing core, overflowing electric power, original classroom pet game art style, white background']],
+            [['小海豹','冰川海象','極寒霸主'],'水/冰',['🦭','🦭','🚢'],'在冰海悠游嬉戲，最終長成能擊碎冰山的極寒霸主。',
+                ['A cute water-ice-type baby seal original fantasy pet, white fluffy snow coat, blue eyes, clapping flippers, sliding on ice, chibi style, original classroom pet game art style, white background','A water-ice-type glacier walrus original fantasy pet, ice tusk extensions, body partially frozen in ice block, commanding arctic seas, original classroom pet game art style, white background','A colossal water-ice-type supreme arctic overlord original fantasy pet, iceberg armor body, crushing glaciers underfoot, blizzard aura, lord of frozen seas, epic polar stance, original classroom pet game art style, white background']],
+            [['影龍蛋','暗翼龍','終焉魔龍'],'龍/惡',['🥚','🐲','👹'],'在黑暗蛋殼中蘊藏著滅世之力，最終成為終焉魔龍。',
+                ['A cute dark-dragon-type shadow dragon egg original fantasy pet, cracked black shell glowing with ominous purple light, evil eyes peeking out, chibi style, original classroom pet game art style, white background','A dark-dragon-type shadow wing dragon original fantasy pet, dark purple body, shadow-made wings, glowing red eyes, ominous aura, flying pose, original classroom pet game art style, white background','A terrifying dark-dragon-type doomsday demon dragon original fantasy pet, obsidian scales with lava cracks, massive dark wings, breathing black fire, destroyer of worlds, epic apocalyptic pose, original classroom pet game art style, white background']],
+            [['小獨角仙','大角甲蟲','破天甲神'],'蟲/格鬥',['🪲','🪲','🪲'],'堅硬外殼是最好的盔甲，最終以巨角破碎天空。',
+                ['A cute bug-fighting-type baby rhinoceros beetle original fantasy pet, blue shiny carapace, tiny single horn, determined face, chibi style, original classroom pet game art style, white background','A bug-fighting-type giant horn beetle original fantasy pet, massive X-shaped horn, flexing beetle arms, combat ready pose, original classroom pet game art style, white background','A epic bug-fighting-type sky-piercing armor god original fantasy pet, three enormous horns piercing through clouds, ironclad body, beetle wings spread wide, original classroom pet game art style, white background']],
+            [['化石蛋','翼龍仔','遠古天霸'],'岩石/飛',['🥚','🦕','🦅'],'從遠古化石中甦醒，展翅成為古代的天空霸主。',
+                ['A cute rock-flying-type fossil egg original fantasy pet, grey rocky egg with fossil imprints, glowing golden cracks, ancient energy within, chibi style, original classroom pet game art style, white background','A rock-flying-type pterodactyl hatchling original fantasy pet, prehistoric wings, grey rocky skin, fierce primal gaze, perching pose, original classroom pet game art style, white background','A massive rock-flying-type ancient sky overlord original fantasy pet, gigantic stone-wing pterodactyl, weathered prehistoric body, ruling the skies since ancient times, epic flying roar, original classroom pet game art style, white background']],
+            [['燈火靈','魂炎燈','奪魂神燈'],'幽靈/火',['🏮','🕯️','👻'],'藍色靈火引領迷途的靈魂，最終化身奪魂神燈。',
+                ['A cute ghost-fire-type will-o-wisp original fantasy pet, small floating blue flame, transparent round ghost body, blinking curious expression, chibi style, original classroom pet game art style, white background','A ghost-fire-type soul flame lantern original fantasy pet, ancient lantern body, intense blue spirit fire within, ghostly hands emerging, original classroom pet game art style, white background','A fearsome ghost-fire-type soul-stealing divine lantern original fantasy pet, enormous ancient brass lantern, purple ghost fire, spectral arms reaching out, collecting lost souls, original classroom pet game art style, white background']],
+            [['雪球龍蛋','霜翼龍','極寒神龍'],'冰/龍',['❄️','🐲','🐉'],'在永凍之地孵化的龍蛋，最終成為呼風喚雪的神龍。',
+                ['A cute ice-dragon-type snowball dragon egg original fantasy pet, white and ice-blue egg shell, frost patterns, dragon eye peeking out, chibi style, original classroom pet game art style, white background','A ice-dragon-type frost wing dragon original fantasy pet, translucent ice crystal wings, white and blue scales, breathing blizzard frost, elegant pose, original classroom pet game art style, white background','A majestic ice-dragon-type supreme frost divine dragon original fantasy pet, enormous crystalline ice body, ice crown, summoning a blizzard, lord of arctic skies, original classroom pet game art style, white background']],
+            [['銅拳兵','鐵甲騎士','聖盾守衛'],'格鬥/鋼',['🛡️','⚔️','💂'],'以金屬盾牌守護同伴，最終化身聖盾守衛王。',
+                ['A cute fighting-steel-type copper fist soldier original fantasy pet, small copper armor, tiny round shield, brave face, chibi style, original classroom pet game art style, white background','A fighting-steel-type iron armor knight original fantasy pet, full iron plate armor, charging lance pose, fluttering cape, original classroom pet game art style, white background','A mighty fighting-steel-type holy shield guardian original fantasy pet, massive golden shield generating energy barrier, sacred armor, guardian of all, legendary defender epic pose, original classroom pet game art style, white background']],
+            [['夢境小貘','催眠貘','夢魘魔尊'],'超能力/妖精',['💤','🌀','😈'],'能進入夢境的神秘生物，最終成為操控夢魘的魔尊。',
+                ['A cute psychic-fairy-type dream tapir original fantasy pet, pastel purple body, dreams swirling around its nose like a galaxy, sleepy smile, chibi style, original classroom pet game art style, white background','A psychic-fairy-type hypnosis tapir original fantasy pet, holding a golden spiral pendulum, pink hypnosis waves emanating, mystical expression, original classroom pet game art style, white background','A majestic psychic-fairy-type nightmare demon lord original fantasy pet, dark starry cloak of nightmares, twisted fairy horns, dream realm visible behind it, master of all dreams and fears, original classroom pet game art style, white background']],
         ];
+        const PET_LEGENDARIES_RAW = [
+            ['創世神龍','龍/妖精','👑','宇宙誕生時就存在的神龍，掌管時空與輪迴。','A legendary celestial creation dragon original fantasy pet, pure white scales with golden galaxy patterns, body glowing with cosmic light, time and space swirling around it, original classroom pet game art style, white background'],
+            ['終界魔龍','龍/惡','😈','帶來終末之火的黑暗龍王，傳說中的滅世使者。','A legendary doomsday demon dragon original fantasy pet, jet-black obsidian scales with lava crack veins, massive shadow wings, red demonic eyes, apocalyptic dark fire aura, original classroom pet game art style, white background'],
+            ['烈陽火鳳','火/超能力','☀️','用太陽之力重生的神鳥，每次死亡都將更強大的姿態復活。','A legendary solar fire phoenix original fantasy pet, wings made of pure sun fire and golden plasma, body radiating solar corona, casting a solar eclipse, blazing legendary pose, original classroom pet game art style, white background'],
+            ['皎月白狼','冰/妖精','🌙','在月光下奔馳的聖獸，月圓之夜力量強大到無法抵擋。','A legendary moon white wolf original fantasy pet, pure white crystalline fur, standing on a glowing crescent moon, ice-blue eyes like glaciers, howling to the stars, magical moonlit scene, original classroom pet game art style, white background'],
+            ['深海魔皇','水/鋼','🌊','統治最深海域的古老巨獸，鋼鐵之身無懼任何壓力。','A legendary deep sea demon emperor original fantasy pet, colossal sea serpent with metallic armored body, glowing bioluminescent neon lines, swirling in a massive deep ocean vortex, original classroom pet game art style, white background'],
+            ['大地神牛','地面/格鬥','🐂','踏地一聲能引發地震的神牛，是大地力量的象徵。','A legendary earth god bull original fantasy pet, body made of volcanic rock and ancient stone, magma horn tips, one hoof stamp cracking the earth apart, dust and rock storm aura, original classroom pet game art style, white background'],
+        ];
+        // 建立標準家族結構
+        const PET_FAMILIES = [
+            ...PET_FAMILIES_RAW.map((r, i) => ({ lineId: i+1, names: r[0], type: r[1], emoji: r[2], desc: r[3], prompts: r[4], isLegendary: false, stages: 3 })),
+            ...PET_LEGENDARIES_RAW.map((r, i) => ({ lineId: 31+i, names: [r[0]], type: r[1], emoji: [r[2]], desc: r[3], prompts: [r[4]], isLegendary: true, stages: 1 })),
+        ];
+        const REGULAR_FAMILY_COUNT = 30; // 非傳說家族數量
         const PET_TYPE_COLORS = {
-            '草': 'bg-green-100 text-green-700', '火': 'bg-orange-100 text-orange-700', '水': 'bg-blue-100 text-blue-700',
-            '電': 'bg-amber-100 text-amber-700', '蟲': 'bg-lime-100 text-lime-700', '飛': 'bg-sky-100 text-sky-700',
-            '幽靈': 'bg-purple-100 text-purple-700', '岩': 'bg-stone-200 text-stone-700', '冰': 'bg-cyan-100 text-cyan-700',
-            '龍': 'bg-indigo-100 text-indigo-700', '妖精': 'bg-pink-100 text-pink-700', '格鬥': 'bg-red-100 text-red-700',
+            '草':'bg-green-100 text-green-700','火':'bg-orange-100 text-orange-700','水':'bg-blue-100 text-blue-700',
+            '電':'bg-amber-100 text-amber-700','蟲':'bg-lime-100 text-lime-700','飛行':'bg-sky-100 text-sky-700',
+            '幽靈':'bg-purple-100 text-purple-700','岩石':'bg-stone-200 text-stone-700','冰':'bg-cyan-100 text-cyan-700',
+            '龍':'bg-indigo-100 text-indigo-700','妖精':'bg-pink-100 text-pink-700','格鬥':'bg-red-100 text-red-700',
+            '毒':'bg-violet-100 text-violet-700','地面':'bg-yellow-100 text-yellow-700','超能力':'bg-fuchsia-100 text-fuchsia-700',
+            '鋼鐵':'bg-slate-200 text-slate-700','惡':'bg-gray-200 text-gray-700','一般':'bg-zinc-100 text-zinc-700',
         };
-        const getPetStage = (score) => {
-            let stage = 0;
-            for (let i = 0; i < PET_THRESHOLDS.length; i++) { if (score >= PET_THRESHOLDS[i]) stage = i; }
-            return stage;
-        };
-        const getPetFamily = (id) => PET_FAMILIES[id % PET_FAMILIES.length];
+        const getPetTypeColor = (type) => PET_TYPE_COLORS[type.split('/')[0]] || PET_TYPE_COLORS[type] || 'bg-slate-100 text-slate-600';
+        const getPetStage = (score) => { if (score >= PET_THRESHOLDS[2]) return 2; if (score >= PET_THRESHOLDS[1]) return 1; return 0; };
+        const getPetFamily = (lineId) => PET_FAMILIES.find(f => f.lineId === lineId) || PET_FAMILIES[0];
 
         // 雲端同步：需要同步的 localStorage 鍵（不含 API Key，金鑰只留本機）
         const CLOUD_KEYS = [
@@ -186,7 +248,7 @@
             'class502_self_reflections_v1', 'class502_volume', 'class_name_title',
             'class502_redeem_history_v1', 'class502_exam_schedule_v1', 'class502_seats_v2',
             'class502_score_history_v1', 'class502_rewards_v2', 'class502_behavior_records_v1',
-            'class502_module_config_v1', 'class502_pet_names_v1', 'class502_groups_v1',
+            'class502_module_config_v1', 'class502_pet_names_v1', 'class502_pet_assignments_v1', 'class502_groups_v1',
             'class502_board_heading_v1', 'class502_board_notes_v1', 'class502_last_settlement_date'
         ];
         // 內建的 Firebase 設定（ZheTeacher 專案，2026-06-07 由 Claude 代為建立）
@@ -236,6 +298,24 @@
             tabExam: true, tabSeats: true, tabScore: true, tabRedeem: true, tabRecords: true,
             tabPets: true, tabGroups: true, tabBoard: true, tabQR: true
         };
+
+        // IndexedDB 工具：快取 AI 生成的寵物圖片（比 localStorage 容量大）
+        const PetImgDB = (() => {
+            let _db = null;
+            const init = () => new Promise((res, rej) => {
+                if (_db) return res(_db);
+                const req = indexedDB.open('class502_pet_imgs_v1', 1);
+                req.onupgradeneeded = e => e.target.result.createObjectStore('imgs');
+                req.onsuccess = e => { _db = e.target.result; res(_db); };
+                req.onerror = () => rej(req.error);
+            });
+            return {
+                async get(key) { try { const d = await init(); return new Promise(r => { const q = d.transaction('imgs').objectStore('imgs').get(key); q.onsuccess = () => r(q.result || null); q.onerror = () => r(null); }); } catch { return null; } },
+                async set(key, val) { try { const d = await init(); return new Promise(r => { const tx = d.transaction('imgs','readwrite'); tx.objectStore('imgs').put(val, key); tx.oncomplete = r; tx.onerror = r; }); } catch {} },
+                async del(key) { try { const d = await init(); return new Promise(r => { const tx = d.transaction('imgs','readwrite'); tx.objectStore('imgs').delete(key); tx.oncomplete = r; tx.onerror = r; }); } catch {} },
+                async getAll() { try { const d = await init(); return new Promise(r => { const out = {}; const req = d.transaction('imgs').objectStore('imgs').openCursor(); req.onsuccess = e => { const c = e.target.result; if (c) { out[c.key] = c.value; c.continue(); } else r(out); }; req.onerror = () => r({}); }); } catch { return {}; } },
+            };
+        })();
 
         const App = () => {
             const [currentTab, setCurrentTab] = useState('dashboard');
@@ -304,8 +384,12 @@
 
             // 寵物養成
             const [petNames, setPetNames] = useState({});
+            const [petAssignments, setPetAssignments] = useState({}); // { studentId: lineId }
             const [showPetDex, setShowPetDex] = useState(false);
+            const [petDexFilter, setPetDexFilter] = useState('all'); // 'all' | 'legendary' | type
             const [petDetailId, setPetDetailId] = useState(null);
+            const [petImages, setPetImages] = useState({}); // { 'lineId_stage' | 'lineId_l': dataUrl }
+            const [petImgGenerating, setPetImgGenerating] = useState(null); // key string or null
             // 分組工具
             const [groupMode, setGroupMode] = useState('random');
             const [groupBy, setGroupBy] = useState('count');
@@ -521,6 +605,20 @@
                 setScoreHistory(load('class502_score_history_v1', [])); 
                 setBehaviorRecords(load('class502_behavior_records_v1', []));
                 setPetNames(load('class502_pet_names_v1', {}));
+                // 載入並初始化寵物分配（若學生尚未分配則隨機指定）
+                const savedAssignments = load('class502_pet_assignments_v1', {});
+                const studentList = load('class502_student_data_v8', INITIAL_STUDENT_DATA);
+                let assignChanged = false;
+                studentList.forEach(s => {
+                    if (!savedAssignments[s.id]) {
+                        savedAssignments[s.id] = Math.random() < 0.10
+                            ? 31 + Math.floor(Math.random() * 6)
+                            : Math.floor(Math.random() * REGULAR_FAMILY_COUNT) + 1;
+                        assignChanged = true;
+                    }
+                });
+                setPetAssignments(savedAssignments);
+                if (assignChanged) localStorage.setItem('class502_pet_assignments_v1', JSON.stringify(savedAssignments));
                 setSavedGroups(load('class502_groups_v1', []));
                 setBoardHeading(localStorage.getItem('class502_board_heading_v1') || "今日學習目標");
                 setBoardNotes(load('class502_board_notes_v1', []));
@@ -576,6 +674,42 @@
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_behavior_records_v1', JSON.stringify(behaviorRecords)); }, [behaviorRecords, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_module_config_v1', JSON.stringify(moduleConfig)); }, [moduleConfig, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_pet_names_v1', JSON.stringify(petNames)); }, [petNames, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_pet_assignments_v1', JSON.stringify(petAssignments)); }, [petAssignments, isLoaded]);
+
+            // 從 IndexedDB 載入已生成的寵物圖片
+            useEffect(() => { PetImgDB.getAll().then(imgs => { if (Object.keys(imgs).length > 0) setPetImages(imgs); }); }, []);
+
+            const getPetImgKey = (lineId, stage, isLeg) => isLeg ? `${lineId}_l` : `${lineId}_${stage}`;
+
+            const generatePetImage = async (lineId, stage) => {
+                if (!userApiKey) { alert('請先在設定中填入 Gemini API Key'); return; }
+                const fam = getPetFamily(lineId);
+                if (!fam || !fam.prompts) return;
+                const key = getPetImgKey(lineId, stage, fam.isLegendary);
+                const prompt = fam.isLegendary ? fam.prompts[0] : fam.prompts[stage];
+                if (!prompt) return;
+                setPetImgGenerating(key);
+                try {
+                    const resp = await fetch(
+                        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${userApiKey}`,
+                        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text: prompt}]}], generationConfig:{responseModalities:['IMAGE','TEXT']} }) }
+                    );
+                    const data = await resp.json();
+                    const imgPart = (data?.candidates?.[0]?.content?.parts || []).find(p => p.inlineData);
+                    if (imgPart) {
+                        const dataUrl = `data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`;
+                        setPetImages(prev => ({ ...prev, [key]: dataUrl }));
+                        await PetImgDB.set(key, dataUrl);
+                    } else { alert('Gemini 無法生成圖片，請確認 API Key 有圖片生成權限'); }
+                } catch(e) { alert('生成失敗：' + e.message); }
+                finally { setPetImgGenerating(null); }
+            };
+
+            const deletePetImage = async (lineId, stage, isLeg) => {
+                const key = getPetImgKey(lineId, stage, isLeg);
+                setPetImages(prev => { const n = {...prev}; delete n[key]; return n; });
+                await PetImgDB.del(key);
+            };
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_groups_v1', JSON.stringify(savedGroups)); }, [savedGroups, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_heading_v1', boardHeading); }, [boardHeading, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_notes_v1', JSON.stringify(boardNotes)); }, [boardNotes, isLoaded]);
@@ -1765,35 +1899,48 @@
                                 <div className="flex flex-wrap gap-2 text-xs font-bold bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm">
                                     <span className="text-slate-400">進化門檻：</span>
                                     {PET_THRESHOLDS.map((t, i) => (<span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{['幼年體','中階體','最終體'][i]} ≥ {t}分</span>))}
+                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded">✨ 傳說（隨機10%機率）</span>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                     {studentData.map(s => {
-                                        const fam = getPetFamily(s.id);
-                                        const stage = getPetStage(s.score);
-                                        const nextThreshold = PET_THRESHOLDS[stage + 1];
-                                        const isMax = nextThreshold === undefined;
-                                        const base = PET_THRESHOLDS[stage];
+                                        const fam = getPetFamily(petAssignments[s.id] || 1);
+                                        const stage = fam.isLegendary ? 0 : getPetStage(s.score);
+                                        const nextThreshold = fam.isLegendary ? undefined : PET_THRESHOLDS[stage + 1];
+                                        const isMax = fam.isLegendary || nextThreshold === undefined;
+                                        const base = PET_THRESHOLDS[stage] || 0;
                                         const progress = isMax ? 100 : Math.min(100, Math.round(((s.score - base) / (nextThreshold - base)) * 100));
+                                        const imgKey = getPetImgKey(fam.lineId, stage, fam.isLegendary);
+                                        const petImg = petImages[imgKey];
                                         return (
-                                            <div key={s.id} onClick={() => setPetDetailId(s.id)} className="bg-white rounded-2xl border-2 border-rose-100 shadow-sm p-3 flex flex-col items-center hover:-translate-y-1 hover:border-rose-300 transition-all cursor-pointer">
-                                                <div className="w-full flex justify-between items-center">
+                                            <div key={s.id} onClick={() => setPetDetailId(s.id)} className={`rounded-2xl border-2 shadow-sm p-3 flex flex-col items-center hover:-translate-y-1 transition-all cursor-pointer ${fam.isLegendary ? 'border-amber-300 bg-gradient-to-b from-amber-50 to-white hover:border-amber-500 hover:shadow-amber-100' : 'bg-white border-rose-100 hover:border-rose-300 hover:shadow-rose-100'}`}>
+                                                <div className="w-full flex justify-between items-center mb-1">
                                                     <span className="text-xs font-bold text-slate-400">{s.id}號 {s.name}</span>
-                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${PET_TYPE_COLORS[fam.type]}`}>{fam.type}</span>
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getPetTypeColor(fam.type)}`}>{fam.type}</span>
                                                 </div>
-                                                <div className="text-6xl my-2 select-none" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.12))' }}>{fam.emoji[stage]}</div>
+                                                {fam.isLegendary && <span className="text-[10px] font-black text-amber-600 mb-1">★ 傳說</span>}
+                                                <div className="w-20 h-20 my-1 flex items-center justify-center select-none">
+                                                    {petImg
+                                                        ? <img src={petImg} alt={fam.names[stage]} className="w-full h-full object-contain transition-transform hover:scale-110" style={{filter:'drop-shadow(0 4px 8px rgba(0,0,0,0.18))'}} />
+                                                        : <span className="text-6xl" style={{filter:'drop-shadow(0 4px 6px rgba(0,0,0,0.15))'}}>{fam.emoji[stage]}</span>
+                                                    }
+                                                </div>
                                                 <input type="text" value={petNames[s.id] || ""} onClick={(e) => e.stopPropagation()} onChange={(e) => setPetNames({ ...petNames, [s.id]: e.target.value })} placeholder={fam.names[stage]} className="w-full text-center font-bold text-sm text-rose-700 bg-transparent border-b border-dashed border-rose-200 focus:border-rose-500 outline-none mb-2" />
-                                                <div className="flex items-center justify-center gap-1.5 mb-2 select-none">
-                                                    {fam.emoji.map((e, i) => (
-                                                        <React.Fragment key={i}>
-                                                            {i > 0 && <span className="text-slate-300 text-xs">→</span>}
-                                                            <span className={`text-lg transition-all ${i === stage ? 'scale-125' : i < stage ? 'opacity-60' : 'opacity-25 grayscale'}`}>{e}</span>
-                                                        </React.Fragment>
-                                                    ))}
+                                                {!fam.isLegendary && (
+                                                    <div className="flex items-center justify-center gap-1.5 mb-2 select-none">
+                                                        {fam.emoji.map((e, i) => (
+                                                            <React.Fragment key={i}>
+                                                                {i > 0 && <span className="text-slate-300 text-xs">→</span>}
+                                                                <span className={`text-lg transition-all ${i === stage ? 'scale-125' : i < stage ? 'opacity-60' : 'opacity-20 grayscale'}`}>{e}</span>
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all ${fam.isLegendary ? 'bg-amber-400' : isMax ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: progress + '%' }}></div>
                                                 </div>
-                                                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                                                    <div className={`h-full rounded-full transition-all ${isMax ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: progress + '%' }}></div>
+                                                <div className="text-[10px] font-bold text-slate-400 mt-1">
+                                                    {fam.isLegendary ? '✨ 傳說最強型態' : isMax ? '✨ 已完全進化' : `差 ${nextThreshold - s.score} 分進化`}
                                                 </div>
-                                                <div className="text-[10px] font-bold text-slate-400 mt-1">{isMax ? '✨ 已完全進化' : `距下一階還差 ${nextThreshold - s.score} 分`}</div>
                                             </div>
                                         );
                                     })}
@@ -2284,28 +2431,50 @@
                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
                             <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-pop">
                                 <div className="p-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white flex justify-between items-center shrink-0">
-                                    <h3 className="font-bold flex items-center gap-2 text-lg"><Icon component={Icons.BookOpen}/> 寵物圖鑑 ({PET_FAMILIES.length} 種家族)</h3>
+                                    <h3 className="font-bold flex items-center gap-2 text-lg"><Icon component={Icons.BookOpen}/> 寵物圖鑑（{REGULAR_FAMILY_COUNT} 普通 + 6 傳說）</h3>
                                     <button onClick={() => setShowPetDex(false)} className="hover:text-rose-200"><Icon component={Icons.X}/></button>
                                 </div>
+                                <div className="px-5 pt-4 pb-2 flex gap-2 flex-wrap shrink-0 border-b border-slate-100 bg-white">
+                                    {[['all','全部'],['regular','普通家族'],['legendary','⭐ 傳說']].map(([f, label]) => (
+                                        <button key={f} onClick={() => setPetDexFilter(f)}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${petDexFilter === f ? 'bg-rose-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
                                 <div className="p-5 flex-1 overflow-y-auto bg-slate-50 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {PET_FAMILIES.map((fam, fi) => (
-                                        <div key={fi} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                                    {PET_FAMILIES.filter(fam => petDexFilter === 'all' || (petDexFilter === 'legendary' ? fam.isLegendary : !fam.isLegendary)).map(fam => (
+                                        <div key={fam.lineId} className={`bg-white rounded-2xl border shadow-sm p-4 ${fam.isLegendary ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50' : 'border-slate-200'}`}>
                                             <div className="flex items-center justify-between mb-3">
-                                                <span className="font-black text-slate-700">No.{(fi + 1).toString().padStart(2, '0')}</span>
-                                                <span className={`text-xs font-bold px-2 py-0.5 rounded ${PET_TYPE_COLORS[fam.type]}`}>{fam.type}屬性</span>
+                                                <span className="font-black text-slate-700">No.{fam.lineId.toString().padStart(2, '0')}</span>
+                                                <div className="flex gap-1.5">
+                                                    {fam.isLegendary && <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-700">★ 傳說</span>}
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${getPetTypeColor(fam.type)}`}>{fam.type}</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center justify-center gap-2 mb-3">
-                                                {fam.emoji.map((e, i) => (
-                                                    <React.Fragment key={i}>
-                                                        {i > 0 && <Icon component={Icons.Plus} size={14} className="text-slate-300 rotate-45"/>}
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="text-4xl">{e}</span>
-                                                            <span className="text-xs font-bold text-slate-600 mt-1">{fam.names[i]}</span>
-                                                            <span className="text-[10px] text-slate-400">≥{PET_THRESHOLDS[i]}分</span>
-                                                        </div>
-                                                    </React.Fragment>
-                                                ))}
-                                            </div>
+                                            {fam.isLegendary ? (
+                                                <div className="flex flex-col items-center mb-3">
+                                                    {(() => { const k = getPetImgKey(fam.lineId,0,true); const img = petImages[k]; return img ? <img src={img} alt={fam.names[0]} className="w-20 h-20 object-contain mb-1" style={{filter:'drop-shadow(0 4px 8px rgba(0,0,0,0.18))'}} /> : <span className="text-5xl mb-1">{fam.emoji[0]}</span>; })()}
+                                                    <span className="text-sm font-black text-amber-700">{fam.names[0]}</span>
+                                                    <span className="text-xs text-amber-400 mt-0.5">傳說寵物・不會進化</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-center gap-2 mb-3">
+                                                    {fam.emoji.map((e, i) => {
+                                                        const k = getPetImgKey(fam.lineId, i, false);
+                                                        const img = petImages[k];
+                                                        return (
+                                                        <React.Fragment key={i}>
+                                                            {i > 0 && <span className="text-slate-300 text-xs">→</span>}
+                                                            <div className="flex flex-col items-center">
+                                                                {img ? <img src={img} alt={fam.names[i]} className="w-10 h-10 object-contain" style={{filter:'drop-shadow(0 3px 6px rgba(0,0,0,0.15))'}} /> : <span className="text-3xl">{e}</span>}
+                                                                <span className="text-xs font-bold text-slate-600 mt-1">{fam.names[i]}</span>
+                                                                <span className="text-[10px] text-slate-400">≥{PET_THRESHOLDS[i]}分</span>
+                                                            </div>
+                                                        </React.Fragment>
+                                                    );})}
+                                                </div>
+                                            )}
                                             <p className="text-xs text-slate-500 leading-relaxed text-center bg-slate-50 rounded-lg p-2">{fam.desc}</p>
                                         </div>
                                     ))}
@@ -2318,42 +2487,89 @@
                     {petDetailId !== null && (() => {
                         const s = studentData.find(x => x.id === petDetailId);
                         if (!s) return null;
-                        const fam = getPetFamily(s.id);
-                        const stage = getPetStage(s.score);
-                        const nextThreshold = PET_THRESHOLDS[stage + 1];
-                        const isMax = nextThreshold === undefined;
+                        const fam = getPetFamily(petAssignments[s.id]);
+                        const stage = fam.isLegendary ? 0 : getPetStage(s.score);
+                        const nextThreshold = fam.isLegendary ? undefined : PET_THRESHOLDS[stage + 1];
+                        const isMax = fam.isLegendary || nextThreshold === undefined;
+                        const imgKey = getPetImgKey(fam.lineId, stage, fam.isLegendary);
+                        const petImg = petImages[imgKey];
+                        const isGenThis = petImgGenerating === imgKey;
                         return (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4" onClick={() => setPetDetailId(null)}>
                                 <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-pop" onClick={(e) => e.stopPropagation()}>
-                                    <div className={`p-4 text-white flex justify-between items-center bg-gradient-to-r from-${fam.theme}-500 to-${fam.theme}-400`} style={{ background: 'linear-gradient(to right, #f43f5e, #fb7185)' }}>
+                                    <div className={`p-4 text-white flex justify-between items-center ${fam.isLegendary ? 'bg-gradient-to-r from-amber-500 to-yellow-400' : 'bg-gradient-to-r from-rose-500 to-pink-400'}`}>
                                         <h3 className="font-bold flex items-center gap-2">{s.id}號 {s.name} 的寵物</h3>
                                         <button onClick={() => setPetDetailId(null)} className="hover:opacity-70"><Icon component={Icons.X}/></button>
                                     </div>
                                     <div className="p-6 flex flex-col items-center">
-                                        <div className="text-8xl mb-2 select-none" style={{ filter: 'drop-shadow(0 6px 8px rgba(0,0,0,0.15))' }}>{fam.emoji[stage]}</div>
-                                        <input type="text" value={petNames[s.id] || ""} onChange={(e) => setPetNames({ ...petNames, [s.id]: e.target.value })} placeholder={fam.names[stage]} className="text-center font-black text-xl text-rose-700 bg-transparent border-b-2 border-dashed border-rose-200 focus:border-rose-500 outline-none mb-2" />
+                                        {/* 寵物圖片區 */}
+                                        <div className={`w-36 h-36 mb-3 flex items-center justify-center rounded-2xl relative ${fam.isLegendary ? 'bg-gradient-to-br from-amber-50 to-yellow-100 border-2 border-amber-200' : 'bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-100'}`}>
+                                            {petImg
+                                                ? <img src={petImg} alt={fam.names[stage]} className="w-full h-full object-contain p-2" style={{filter:'drop-shadow(0 6px 10px rgba(0,0,0,0.2))'}} />
+                                                : <span className="text-8xl select-none" style={{filter:'drop-shadow(0 6px 8px rgba(0,0,0,0.15))'}}>{fam.emoji[stage]}</span>
+                                            }
+                                            {isGenThis && (
+                                                <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center rounded-2xl">
+                                                    <Icon component={Icons.Loader2} className="animate-spin text-rose-500 mb-1" size={28}/>
+                                                    <span className="text-xs font-bold text-rose-500">AI 生成中…</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* 生成 / 刪除按鈕 */}
+                                        <div className="flex gap-2 mb-3">
+                                            {!petImg ? (
+                                                <button onClick={() => generatePetImage(fam.lineId, stage)} disabled={!!petImgGenerating}
+                                                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${fam.isLegendary ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'} disabled:opacity-50`}>
+                                                    <Icon component={Icons.Sparkles} size={13}/> {isGenThis ? '生成中…' : '✨ AI 生成圖片'}
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    <button onClick={() => generatePetImage(fam.lineId, stage)} disabled={!!petImgGenerating}
+                                                        className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 disabled:opacity-50">
+                                                        <Icon component={Icons.RefreshCw} size={12}/> 重新生成
+                                                    </button>
+                                                    <button onClick={() => deletePetImage(fam.lineId, stage, fam.isLegendary)}
+                                                        className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600">
+                                                        <Icon component={Icons.Trash2} size={12}/> 刪除
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input type="text" value={petNames[s.id] || ""} onChange={(e) => setPetNames({ ...petNames, [s.id]: e.target.value })} placeholder={fam.names[stage]} className={`text-center font-black text-xl bg-transparent border-b-2 border-dashed outline-none mb-2 ${fam.isLegendary ? 'text-amber-700 border-amber-200 focus:border-amber-500' : 'text-rose-700 border-rose-200 focus:border-rose-500'}`} />
                                         <div className="flex items-center gap-2 mb-4">
-                                            <span className={`text-xs font-bold px-2 py-0.5 rounded ${PET_TYPE_COLORS[fam.type]}`}>{fam.type}屬性</span>
-                                            <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-700">{['幼年體','中階體','最終體'][stage]}</span>
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded ${getPetTypeColor(fam.type)}`}>{fam.type}</span>
+                                            {fam.isLegendary
+                                                ? <span className="text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-700">★ 傳說寵物</span>
+                                                : <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">{['幼年體','中階體','最終體'][stage]}</span>
+                                            }
                                             <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">目前 {s.score} 分</span>
                                         </div>
-                                        <div className="w-full bg-slate-50 rounded-2xl border border-slate-200 p-4 mb-4">
-                                            <div className="text-xs font-bold text-slate-400 mb-2 text-center">進化鏈</div>
-                                            <div className="flex items-center justify-center gap-2">
-                                                {fam.emoji.map((e, i) => (
-                                                    <React.Fragment key={i}>
-                                                        {i > 0 && <span className="text-slate-300">→</span>}
-                                                        <div className={`flex flex-col items-center ${i === stage ? '' : 'opacity-40'}`}>
-                                                            <span className={`text-3xl ${i === stage ? 'scale-110' : ''}`}>{e}</span>
-                                                            <span className="text-[10px] font-bold text-slate-500 mt-1">{fam.names[i]}</span>
-                                                        </div>
-                                                    </React.Fragment>
-                                                ))}
+                                        {!fam.isLegendary && (
+                                            <div className="w-full bg-slate-50 rounded-2xl border border-slate-200 p-3 mb-4">
+                                                <div className="text-xs font-bold text-slate-400 mb-2 text-center">進化鏈</div>
+                                                <div className="flex items-center justify-center gap-2">
+                                                    {fam.emoji.map((e, i) => {
+                                                        const stgKey = getPetImgKey(fam.lineId, i, false);
+                                                        const stgImg = petImages[stgKey];
+                                                        return (
+                                                            <React.Fragment key={i}>
+                                                                {i > 0 && <span className="text-slate-300">→</span>}
+                                                                <div className={`flex flex-col items-center ${i === stage ? '' : 'opacity-40'}`}>
+                                                                    {stgImg
+                                                                        ? <img src={stgImg} alt={fam.names[i]} className={`object-contain ${i === stage ? 'w-10 h-10' : 'w-8 h-8'}`} />
+                                                                        : <span className={`${i === stage ? 'text-3xl scale-110' : 'text-2xl'}`}>{e}</span>
+                                                                    }
+                                                                    <span className="text-[10px] font-bold text-slate-500 mt-1">{fam.names[i]}</span>
+                                                                </div>
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                         <p className="text-sm text-slate-500 leading-relaxed text-center mb-3">{fam.desc}</p>
                                         <div className={`w-full text-center text-sm font-bold rounded-xl py-2 ${isMax ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
-                                            {isMax ? '✨ 已完全進化，最強型態！' : `再得 ${nextThreshold - s.score} 分就會進化成「${fam.names[stage + 1]}」`}
+                                            {fam.isLegendary ? '✨ 傳說寵物，全班最稀有！' : isMax ? '✨ 已完全進化，最強型態！' : `再得 ${nextThreshold - s.score} 分就會進化成「${fam.names[stage + 1]}」`}
                                         </div>
                                     </div>
                                 </div>
