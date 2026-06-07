@@ -359,6 +359,7 @@
             const [currentLevel, setCurrentLevel] = useState(0); 
             const [dailyUpdateMsg, setDailyUpdateMsg] = useState("");
             const [userApiKey, setUserApiKey] = useState("");
+            const [userHfKey, setUserHfKey] = useState("");
             const [copySuccess, setCopySuccess] = useState(false);
             const [showAIModal, setShowAIModal] = useState(false);
             const [aiPrompt, setAiPrompt] = useState("");
@@ -597,6 +598,7 @@
                 setCurrentLevel(parseInt(localStorage.getItem('class502_volume') || '0'));
                 setClassNameTitle(localStorage.getItem('class_name_title') || "502 班級");
                 setUserApiKey(localStorage.getItem('class502_api_key') || "");
+                setUserHfKey(localStorage.getItem('class502_hf_key') || "");
                 setRedeemHistory(load('class502_redeem_history_v1', []));
                 setRewardsList(load('class502_rewards_v2', DEFAULT_REWARDS)); 
                 setOutstandingHomeworks(load('class502_outstanding_hw_v2', []));
@@ -666,6 +668,7 @@
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_volume', currentLevel.toString()); }, [currentLevel, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class_name_title', classNameTitle); }, [classNameTitle, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_api_key', userApiKey); }, [userApiKey, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_hf_key', userHfKey); }, [userHfKey, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_redeem_history_v1', JSON.stringify(redeemHistory)); }, [redeemHistory, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_exam_schedule_v1', JSON.stringify(examSchedule)); }, [examSchedule, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_seats_v2', JSON.stringify(seatPositions)); }, [seatPositions, isLoaded]);
@@ -687,13 +690,24 @@
                 const key = getPetImgKey(lineId, stage, fam.isLegendary);
                 const prompt = fam.isLegendary ? fam.prompts[0] : fam.prompts[stage];
                 if (!prompt) return;
+                if (!userHfKey) {
+                    alert('請先在「AI 助教設定」中填入 HuggingFace Token（免費申請：huggingface.co/settings/tokens）');
+                    return;
+                }
                 setPetImgGenerating(key);
                 try {
-                    // Pollinations.ai：免費、不需要 API Key，直接從瀏覽器呼叫
-                    const seed = Math.floor(Math.abs(lineId * 137 + stage * 31));
-                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&model=flux&nologo=true&seed=${seed}`;
-                    const resp = await fetch(url);
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const resp = await fetch(
+                        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+                        {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${userHfKey}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ inputs: prompt, parameters: { width: 512, height: 512 } })
+                        }
+                    );
+                    if (!resp.ok) {
+                        const errText = await resp.text();
+                        throw new Error(`HF API ${resp.status}: ${errText}`);
+                    }
                     const blob = await resp.blob();
                     const dataUrl = await new Promise((res, rej) => {
                         const reader = new FileReader();
@@ -703,7 +717,7 @@
                     });
                     setPetImages(prev => ({ ...prev, [key]: dataUrl }));
                     await PetImgDB.set(key, dataUrl);
-                } catch(e) { alert('圖片生成失敗：' + e.message + '\n\n（請確認網路連線正常）'); }
+                } catch(e) { alert('圖片生成失敗：' + e.message); }
                 finally { setPetImgGenerating(null); }
             };
 
@@ -2275,7 +2289,15 @@
                                         </div>
                                         <input type="password" placeholder="請貼上 API Key..." value={userApiKey} onChange={e=>setUserApiKey(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 focus:border-violet-500 outline-none font-mono" />
                                     </div>
-                                    
+                                    <div>
+                                        <div className="flex justify-between items-end mb-1">
+                                            <label className="block text-xs font-bold text-slate-500">HuggingFace Token（寵物 AI 圖片生成）</label>
+                                            <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-500 hover:underline">免費申請 →</a>
+                                        </div>
+                                        <input type="password" placeholder="hf_..." value={userHfKey} onChange={e=>setUserHfKey(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 focus:border-blue-400 outline-none font-mono" />
+                                        <p className="text-xs text-slate-400 mt-1">免費帳號即可使用，用於生成寵物圖片（FLUX.1-schnell 模型）</p>
+                                    </div>
+
                                     <div className="pt-4 border-t border-slate-100">
                                         <label className="block text-xs font-bold text-slate-500 mb-2">快速問答測試區</label>
                                         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
