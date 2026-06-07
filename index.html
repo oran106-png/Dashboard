@@ -683,6 +683,19 @@
             // 從 IndexedDB 載入已生成的寵物圖片
             useEffect(() => { PetImgDB.getAll().then(imgs => { if (Object.keys(imgs).length > 0) setPetImages(imgs); }); }, []);
 
+            // 嘗試載入預先生成的靜態寵物圖片（GitHub Pages 部署版）
+            useEffect(() => {
+                if (!isLoaded) return;
+                const keys = [];
+                for (let id = 1; id <= 30; id++) { for (let s = 0; s <= 2; s++) keys.push(`${id}_${s}`); }
+                for (let id = 31; id <= 36; id++) keys.push(`${id}_l`);
+                keys.forEach(key => {
+                    const img = new Image();
+                    img.onload = () => setPetImages(prev => prev[key] ? prev : { ...prev, [key]: img.src });
+                    img.src = `./assets/pets/pet_${key}.png`;
+                });
+            }, [isLoaded]);
+
             const getPetImgKey = (lineId, stage, isLeg) => isLeg ? `${lineId}_l` : `${lineId}_${stage}`;
 
             const renderPetToDataUrl = (lineId, stage) => {
@@ -786,10 +799,17 @@
                 const key = getPetImgKey(lineId, stage, fam.isLegendary);
                 setPetImgGenerating(key);
                 try {
-                    const dataUrl = renderPetToDataUrl(lineId, stage);
-                    if (!dataUrl) throw new Error('Canvas 生成失敗');
-                    setPetImages(prev => ({ ...prev, [key]: dataUrl }));
-                    await PetImgDB.set(key, dataUrl);
+                    // 優先嘗試靜態預生成圖片
+                    const staticUrl = `./assets/pets/pet_${key}.png`;
+                    const hasStatic = await new Promise(r => { const i = new Image(); i.onload = () => r(true); i.onerror = () => r(false); i.src = staticUrl; });
+                    if (hasStatic) {
+                        setPetImages(prev => ({ ...prev, [key]: staticUrl }));
+                    } else {
+                        const dataUrl = renderPetToDataUrl(lineId, stage);
+                        if (!dataUrl) throw new Error('Canvas 生成失敗');
+                        setPetImages(prev => ({ ...prev, [key]: dataUrl }));
+                        await PetImgDB.set(key, dataUrl);
+                    }
                 } catch(e) { alert('圖片生成失敗：' + e.message); }
                 finally { setPetImgGenerating(null); }
             };
