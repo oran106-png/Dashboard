@@ -684,37 +684,130 @@
 
             const getPetImgKey = (lineId, stage, isLeg) => isLeg ? `${lineId}_l` : `${lineId}_${stage}`;
 
+            const renderPetToDataUrl = (lineId, stage) => {
+                const fam = getPetFamily(lineId);
+                if (!fam) return null;
+                const W = 400, H = 400;
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                const ctx = canvas.getContext('2d');
+                const TYPE_PAL = {
+                    '草':['#dcfce7','#16a34a','#4ade80','#15803d'],
+                    '火':['#fee2e2','#dc2626','#f87171','#b91c1c'],
+                    '水':['#dbeafe','#1d4ed8','#60a5fa','#1e40af'],
+                    '雷':['#fef9c3','#ca8a04','#facc15','#a16207'],
+                    '冰':['#cffafe','#0891b2','#22d3ee','#0e7490'],
+                    '地':['#fef3c7','#92400e','#d97706','#78350f'],
+                    '風':['#ccfbf1','#0f766e','#2dd4bf','#115e59'],
+                    '暗':['#ede9fe','#6d28d9','#8b5cf6','#5b21b6'],
+                    '光':['#fef9c3','#d97706','#fbbf24','#b45309'],
+                    '鋼':['#e2e8f0','#475569','#94a3b8','#334155'],
+                    '龍':['#ede9fe','#7c3aed','#a78bfa','#6d28d9'],
+                    '毒':['#fae8ff','#a21caf','#d946ef','#86198f'],
+                    '格鬥':['#ffe4e6','#be123c','#fb7185','#9f1239'],
+                    '幽靈':['#ede9fe','#4c1d95','#7c3aed','#3b0764'],
+                    '妖精':['#fce7f3','#be185d','#f472b6','#9d174d'],
+                };
+                const pType = fam.type.split('/')[0];
+                const [bg, ring, glow, textCol] = TYPE_PAL[pType] || ['#f3f4f6','#6b7280','#9ca3af','#374151'];
+
+                // 背景漸層
+                const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+                bgGrad.addColorStop(0, '#ffffff'); bgGrad.addColorStop(1, bg);
+                ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+
+                // 光暈
+                const glowGrad = ctx.createRadialGradient(W/2, H/2-20, 30, W/2, H/2-20, 175);
+                glowGrad.addColorStop(0, glow + 'aa'); glowGrad.addColorStop(1, glow + '00');
+                ctx.fillStyle = glowGrad; ctx.fillRect(0, 0, W, H);
+
+                // 傳說外環
+                if (fam.isLegendary) {
+                    [155, 167, 179].forEach((r, i) => {
+                        ctx.beginPath(); ctx.arc(W/2, H/2-20, r, 0, Math.PI*2);
+                        ctx.strokeStyle = glow + ['60','40','20'][i]; ctx.lineWidth = 2; ctx.stroke();
+                    });
+                }
+
+                // 主圓
+                ctx.beginPath(); ctx.arc(W/2, H/2-20, 135, 0, Math.PI*2);
+                const cGrad = ctx.createRadialGradient(W/2-35, H/2-65, 10, W/2, H/2-20, 135);
+                cGrad.addColorStop(0, '#ffffff'); cGrad.addColorStop(1, bg + 'cc');
+                ctx.fillStyle = cGrad; ctx.fill();
+                ctx.strokeStyle = ring;
+                ctx.lineWidth = fam.isLegendary ? 6 : stage === 2 ? 5 : 3;
+                if (fam.isLegendary) ctx.setLineDash([12, 6]);
+                ctx.stroke(); ctx.setLineDash([]);
+
+                // 地面陰影
+                ctx.beginPath(); ctx.ellipse(W/2, H/2+115, 52, 11, 0, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(0,0,0,0.10)'; ctx.fill();
+
+                // Emoji
+                const emoji = fam.isLegendary ? fam.emoji[0] : (fam.emoji[stage] || fam.emoji[0]);
+                const fs = fam.isLegendary ? 128 : stage===2 ? 108 : stage===1 ? 92 : 76;
+                ctx.font = `${fs}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(emoji, W/2, H/2-20);
+
+                // 名字
+                const name = fam.isLegendary ? fam.names[0] : (fam.names[stage] || fam.names[0]);
+                ctx.font = 'bold 22px "PingFang TC","Microsoft JhengHei",sans-serif';
+                ctx.fillStyle = textCol; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+                ctx.fillText(name, W/2, H-68);
+
+                // 屬性標籤
+                const typeLabel = fam.type;
+                ctx.font = 'bold 13px "PingFang TC","Microsoft JhengHei",sans-serif';
+                const tw = ctx.measureText(typeLabel).width + 24;
+                ctx.fillStyle = ring;
+                ctx.fillRect(W/2 - tw/2, H-62, tw, 20);
+                ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle';
+                ctx.fillText(typeLabel, W/2, H-52);
+
+                // 進化圓點 or 傳說星
+                if (fam.isLegendary) {
+                    ctx.font = '20px "Apple Color Emoji",serif';
+                    ctx.fillText('⭐', W/2, H-22);
+                } else {
+                    for (let i = 0; i < 3; i++) {
+                        ctx.beginPath(); ctx.arc(W/2-16+i*16, H-22, 5, 0, Math.PI*2);
+                        ctx.fillStyle = i <= stage ? ring : glow + '55'; ctx.fill();
+                    }
+                }
+
+                return canvas.toDataURL('image/png');
+            };
+
             const generatePetImage = async (lineId, stage) => {
                 const fam = getPetFamily(lineId);
-                if (!fam || !fam.prompts) return;
+                if (!fam) return;
                 const key = getPetImgKey(lineId, stage, fam.isLegendary);
-                const prompt = fam.isLegendary ? fam.prompts[0] : fam.prompts[stage];
-                if (!prompt) return;
-                if (!userHfKey) {
-                    alert('請先在「AI 助教設定」中填入 HuggingFace Token（免費申請：huggingface.co/settings/tokens）');
-                    return;
-                }
                 setPetImgGenerating(key);
                 try {
-                    const resp = await fetch(
-                        'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
-                        {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${userHfKey}`, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ inputs: prompt, parameters: { width: 512, height: 512 } })
-                        }
-                    );
-                    if (!resp.ok) {
-                        const errText = await resp.text();
-                        throw new Error(`HF API ${resp.status}: ${errText}`);
+                    let dataUrl;
+                    if (userHfKey && fam.prompts) {
+                        // HuggingFace FLUX.1-schnell（需填 Token）
+                        const prompt = fam.isLegendary ? fam.prompts[0] : fam.prompts[stage];
+                        if (!prompt) throw new Error('無可用提示詞');
+                        const resp = await fetch(
+                            'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
+                            {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${userHfKey}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ inputs: prompt, parameters: { width: 512, height: 512 } })
+                            }
+                        );
+                        if (!resp.ok) { const t = await resp.text(); throw new Error(`HF ${resp.status}: ${t}`); }
+                        const blob = await resp.blob();
+                        dataUrl = await new Promise((res, rej) => {
+                            const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob);
+                        });
+                    } else {
+                        // Canvas 自動生成（不需 API，即時完成）
+                        dataUrl = renderPetToDataUrl(lineId, stage);
+                        if (!dataUrl) throw new Error('Canvas 生成失敗');
                     }
-                    const blob = await resp.blob();
-                    const dataUrl = await new Promise((res, rej) => {
-                        const reader = new FileReader();
-                        reader.onload = () => res(reader.result);
-                        reader.onerror = rej;
-                        reader.readAsDataURL(blob);
-                    });
                     setPetImages(prev => ({ ...prev, [key]: dataUrl }));
                     await PetImgDB.set(key, dataUrl);
                 } catch(e) { alert('圖片生成失敗：' + e.message); }
