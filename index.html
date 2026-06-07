@@ -780,6 +780,45 @@
                 return canvas.toDataURL('image/png');
             };
 
+            const HF_FREE_MODELS = [
+                'Lykon/dreamshaper-8',
+                'runwayml/stable-diffusion-v1-5',
+                'stabilityai/stable-diffusion-2-1',
+            ];
+
+            const tryHfFetch = async (prompt, token, modelIdx) => {
+                if (modelIdx >= HF_FREE_MODELS.length) return null;
+                try {
+                    const resp = await fetch(
+                        `https://api-inference.huggingface.co/models/${HF_FREE_MODELS[modelIdx]}`,
+                        {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ inputs: prompt })
+                        }
+                    );
+                    if (resp.status === 503) {
+                        await new Promise(r => setTimeout(r, 12000));
+                        const retry = await fetch(
+                            `https://api-inference.huggingface.co/models/${HF_FREE_MODELS[modelIdx]}`,
+                            {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ inputs: prompt })
+                            }
+                        );
+                        if (!retry.ok) return tryHfFetch(prompt, token, modelIdx + 1);
+                        const blob = await retry.blob();
+                        if (!blob.type.startsWith('image/')) return tryHfFetch(prompt, token, modelIdx + 1);
+                        return blob;
+                    }
+                    if (!resp.ok) return tryHfFetch(prompt, token, modelIdx + 1);
+                    const blob = await resp.blob();
+                    if (!blob.type.startsWith('image/')) return tryHfFetch(prompt, token, modelIdx + 1);
+                    return blob;
+                } catch(e) { return tryHfFetch(prompt, token, modelIdx + 1); }
+            };
+
             const generatePetImage = async (lineId, stage) => {
                 const fam = getPetFamily(lineId);
                 if (!fam) return;
@@ -788,27 +827,18 @@
                 try {
                     let dataUrl;
                     if (userHfKey && fam.prompts) {
-                        // HuggingFace FLUX.1-schnell（需填 Token）
                         const prompt = fam.isLegendary ? fam.prompts[0] : fam.prompts[stage];
-                        if (!prompt) throw new Error('無可用提示詞');
-                        const resp = await fetch(
-                            'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell',
-                            {
-                                method: 'POST',
-                                headers: { 'Authorization': `Bearer ${userHfKey}`, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ inputs: prompt, parameters: { width: 512, height: 512 } })
+                        if (prompt) {
+                            const blob = await tryHfFetch(prompt, userHfKey, 0);
+                            if (blob) {
+                                dataUrl = await new Promise((res, rej) => {
+                                    const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob);
+                                });
                             }
-                        );
-                        if (!resp.ok) { const t = await resp.text(); throw new Error(`HF ${resp.status}: ${t}`); }
-                        const blob = await resp.blob();
-                        dataUrl = await new Promise((res, rej) => {
-                            const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob);
-                        });
-                    } else {
-                        // Canvas 自動生成（不需 API，即時完成）
-                        dataUrl = renderPetToDataUrl(lineId, stage);
-                        if (!dataUrl) throw new Error('Canvas 生成失敗');
+                        }
                     }
+                    if (!dataUrl) dataUrl = renderPetToDataUrl(lineId, stage);
+                    if (!dataUrl) throw new Error('Canvas 生成失敗');
                     setPetImages(prev => ({ ...prev, [key]: dataUrl }));
                     await PetImgDB.set(key, dataUrl);
                 } catch(e) { alert('圖片生成失敗：' + e.message); }
