@@ -404,6 +404,7 @@
             const [cloudStatus, setCloudStatus] = useState("");
             const [cloudBusy, setCloudBusy] = useState(false);
             const [cloudAutoSync, setCloudAutoSync] = useState(true);
+            const [portalSyncStatus, setPortalSyncStatus] = useState('');
             const cloudDbRef = useRef(null);
             const cloudAuthRef = useRef(null);
 
@@ -598,20 +599,9 @@
                 setScoreHistory(load('class502_score_history_v1', [])); 
                 setBehaviorRecords(load('class502_behavior_records_v1', []));
                 setPetNames(load('class502_pet_names_v1', {}));
-                // 載入並初始化寵物分配（若學生尚未分配則隨機指定）
+                // 載入寵物分配（未分配的學生初始為 0 = 待抽取）
                 const savedAssignments = load('class502_pet_assignments_v1', {});
-                const studentList = load('class502_student_data_v8', INITIAL_STUDENT_DATA);
-                let assignChanged = false;
-                studentList.forEach(s => {
-                    if (!savedAssignments[s.id]) {
-                        savedAssignments[s.id] = Math.random() < 0.10
-                            ? 31 + Math.floor(Math.random() * 6)
-                            : Math.floor(Math.random() * REGULAR_FAMILY_COUNT) + 1;
-                        assignChanged = true;
-                    }
-                });
                 setPetAssignments(savedAssignments);
-                if (assignChanged) localStorage.setItem('class502_pet_assignments_v1', JSON.stringify(savedAssignments));
                 setSavedGroups(load('class502_groups_v1', []));
                 setBoardHeading(localStorage.getItem('class502_board_heading_v1') || "今日學習目標");
                 setBoardNotes(load('class502_board_notes_v1', []));
@@ -970,8 +960,9 @@
                 document.addEventListener('touchmove', onMove, { passive: false }); document.addEventListener('touchend', onUp);
             };
 
-            // QR Code：產生編碼資料
-            const buildQrData = (s) => qrEncodeType === 'full' ? `${classNameTitle} ${s.id}號 ${s.name}` : s.name;
+            // QR Code：學生寵物頁 URL
+            const STUDENT_PAGE_BASE = 'https://oran106-png.github.io/Dashboard/student.html';
+            const buildQrData = (s) => `${STUDENT_PAGE_BASE}?id=${s.id}`;
 
             // 雲端：初始化 Firebase
             const initCloud = (configText) => {
@@ -988,6 +979,34 @@
                         if (user) {
                             setCloudUser({ uid: user.uid, displayName: user.displayName || "老師", email: user.email || "", photoURL: user.photoURL || "" });
                             setCloudStatus(`✅ 已登入：${user.displayName || user.email}。可上傳或還原資料。`);
+                            // 監聽 portal：學生抽寵物後自動同步回老師端
+                            cloudDbRef.current.collection('portal').doc('class502').onSnapshot(snap => {
+                                if (!snap.exists) return;
+                                const portalStudents = snap.data().students || [];
+                                setPetAssignments(prev => {
+                                    const next = { ...prev };
+                                    let changed = false;
+                                    portalStudents.forEach(ps => {
+                                        if (ps.petLineId && ps.petLineId !== (prev[ps.id] || 0)) {
+                                            next[ps.id] = ps.petLineId;
+                                            changed = true;
+                                        }
+                                    });
+                                    if (changed) localStorage.setItem('class502_pet_assignments_v1', JSON.stringify(next));
+                                    return changed ? next : prev;
+                                });
+                                // 同步扣分（學生抽寵物花的 5 分）
+                                setStudentData(prev => {
+                                    const next = prev.map(s => {
+                                        const ps = portalStudents.find(p => p.id === s.id);
+                                        if (ps && ps.score !== s.score && ps.petLineId && !prev.find(p=>p.id===s.id)?.petLineId) {
+                                            return { ...s, score: ps.score };
+                                        }
+                                        return s;
+                                    });
+                                    return next;
+                                });
+                            });
                         } else { setCloudUser(null); setCloudStatus("尚未登入，請按 Google 登入。"); }
                     });
                     setCloudReady(true);
@@ -1026,6 +1045,15 @@
                     await cloudDbRef.current.collection('classManager').doc(cloudUser.uid).set({
                         payload, updatedAt: new Date().toISOString(), className: classNameTitle
                     });
+                    // 同步學生頁 portal（公開可讀）
+                    const curStudents = JSON.parse(localStorage.getItem('class502_student_data_v8') || '[]');
+                    const curAssign = JSON.parse(localStorage.getItem('class502_pet_assignments_v1') || '{}');
+                    if (curStudents.length) {
+                        await cloudDbRef.current.collection('portal').doc('class502').set({
+                            students: curStudents.map(s => ({ id: s.id, name: s.name, score: s.score, petLineId: curAssign[s.id] || 0 })),
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
                     setCloudStatus(`☁️ 已於 ${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} 上傳到雲端。`);
                 } catch (e) { setCloudStatus(`❌ 上傳失敗：${e.message}`); } finally { if (!silent) setCloudBusy(false); }
             };
@@ -1888,7 +1916,23 @@
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                     {studentData.map(s => {
-                                        const fam = getEffectivePetFamily(petAssignments[s.id] || 1, s.score);
+                                        const lineId = petAssignments[s.id] || 0;
+                                        if (lineId === 0) {
+                                            return (
+                                                <div key={s.id} className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 shadow-sm p-3 flex flex-col items-center opacity-70">
+                                                    <div className="w-full flex justify-between items-center mb-1">
+                                                        <span className="text-xs font-bold text-slate-400">{s.id}號 {s.name}</span>
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">未抽</span>
+                                                    </div>
+                                                    <div className="w-20 h-20 my-1 flex items-center justify-center select-none">
+                                                        <span className="text-5xl">🥚</span>
+                                                    </div>
+                                                    <div className="text-xs font-bold text-slate-400 mt-1">待抽取</div>
+                                                    <div className="text-[10px] text-slate-300 mt-0.5">掃 QR 花 5 點抽寵物</div>
+                                                </div>
+                                            );
+                                        }
+                                        const fam = getEffectivePetFamily(lineId, s.score);
                                         const stage = fam.isLegendary ? 0 : getPetStage(s.score);
                                         const rawNext = fam.isLegendary ? undefined : PET_THRESHOLDS[stage + 1];
                                         const nextThreshold = rawNext ?? (!fam.isLegendary && s.score < LEGENDARY_THRESHOLD ? LEGENDARY_THRESHOLD : undefined);
@@ -2036,14 +2080,11 @@
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><Icon component={Icons.QrCode} className="text-slate-600" /> 學生個人 QR Code</h2>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 text-sm font-bold shadow-sm">
-                                            <button onClick={() => setQrEncodeType('full')} className={`px-3 py-1.5 rounded-lg transition-colors ${qrEncodeType === 'full' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>班級+座號+姓名</button>
-                                            <button onClick={() => setQrEncodeType('name')} className={`px-3 py-1.5 rounded-lg transition-colors ${qrEncodeType === 'name' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>僅姓名</button>
-                                        </div>
+                                        <button onClick={() => pushToCloud(false)} disabled={cloudBusy} className="flex items-center gap-1 text-sm bg-emerald-600 text-white px-3 py-2 rounded-xl hover:bg-emerald-700 disabled:opacity-50 font-bold shadow-sm"><Icon component={Icons.CloudUpload} size={16}/> 同步學生頁</button>
                                         <button onClick={() => window.print()} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-2 rounded-xl hover:bg-blue-700 font-bold shadow-sm"><Icon component={Icons.Printer} size={16}/> 列印</button>
                                     </div>
                                 </div>
-                                <div className="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold px-4 py-2 rounded-xl">QR Code 由 api.qrserver.com 線上產生，需要網路連線。內容僅含基本識別資訊，請依需求選擇編碼方式。</div>
+                                <div className="bg-sky-50 border border-sky-200 text-sky-700 text-xs font-bold px-4 py-2 rounded-xl">📱 學生掃描 QR Code 後會開啟寵物頁面，可花 5 點抽取初始寵物。點「同步學生頁」將最新分數與寵物資料推送到 Firebase，學生頁才會即時更新。</div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                                     {studentData.map(s => (
                                         <div key={s.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col items-center">
@@ -2483,7 +2524,27 @@
                     {petDetailId !== null && (() => {
                         const s = studentData.find(x => x.id === petDetailId);
                         if (!s) return null;
-                        const fam = getEffectivePetFamily(petAssignments[s.id] || 1, s.score);
+                        const lineId = petAssignments[s.id] || 0;
+                        if (lineId === 0) {
+                            return (
+                                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4" onClick={() => setPetDetailId(null)}>
+                                    <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-pop" onClick={(e) => e.stopPropagation()}>
+                                        <div className="p-4 text-white flex justify-between items-center bg-gradient-to-r from-slate-400 to-slate-500">
+                                            <h3 className="font-bold">{s.id}號 {s.name} 的寵物</h3>
+                                            <button onClick={() => setPetDetailId(null)} className="hover:opacity-70"><Icon component={Icons.X}/></button>
+                                        </div>
+                                        <div className="p-6 flex flex-col items-center">
+                                            <div className="w-36 h-36 mb-4 flex items-center justify-center rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
+                                                <span className="text-7xl">🥚</span>
+                                            </div>
+                                            <div className="text-lg font-black text-slate-400 mb-2">尚未抽取寵物</div>
+                                            <div className="text-sm text-slate-400 text-center">讓 {s.name} 掃 QR Code，花 5 點來抽取初始寵物吧！</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        const fam = getEffectivePetFamily(lineId, s.score);
                         const stage = fam.isLegendary ? 0 : getPetStage(s.score);
                         const rawNext = fam.isLegendary ? undefined : PET_THRESHOLDS[stage + 1];
                         const nextThreshold = rawNext ?? (!fam.isLegendary && s.score < LEGENDARY_THRESHOLD ? LEGENDARY_THRESHOLD : undefined);

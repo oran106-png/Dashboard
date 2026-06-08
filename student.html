@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>我的寵物</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pop { 0%{transform:scale(0.4);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .animate-spin-slow { animation: spin 1.2s linear infinite; }
+  .animate-pop { animation: pop 0.5s cubic-bezier(.34,1.56,.64,1) forwards; }
+  .animate-shake { animation: shake 0.4s ease; }
+</style>
+</head>
+<body class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen flex items-center justify-center p-4">
+
+<div id="app" class="w-full max-w-sm">
+  <div id="loading" class="text-center py-16">
+    <div class="text-5xl mb-4">🔄</div>
+    <div class="text-slate-500 font-bold">載入中…</div>
+  </div>
+</div>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDtgJnhqUIOPPcWoZfADmqUcBHVWiIEFkU",
+  authDomain: "zheteacher.firebaseapp.com",
+  projectId: "zheteacher",
+  storageBucket: "zheteacher.firebasestorage.app",
+  messagingSenderId: "255808976602",
+  appId: "1:255808976602:web:168dcff4cffb0d68a657e3"
+};
+
+const THRESHOLDS = [0, 150, 300];
+const LEGENDARY_THRESHOLD = 450;
+
+const FAMILIES = [
+  {id:1,  names:['芽芽鼠','葉葉狐','森靈王'],   type:'草',      emoji:'🌱'},
+  {id:2,  names:['火苗喵','焰焰獅','炎王獸'],   type:'火',      emoji:'🔥'},
+  {id:3,  names:['水珠龜','浪潮龜','海皇龜'],   type:'水',      emoji:'💧'},
+  {id:4,  names:['電電鼠','雷頰鼠','雷神鼠'],   type:'電',      emoji:'⚡'},
+  {id:5,  names:['葉葉蟲','搖搖繭','霓彩蝶'],   type:'蟲',      emoji:'🐛'},
+  {id:6,  names:['羽羽雀','疾風鷹','蒼穹鵬'],   type:'飛行',    emoji:'🐤'},
+  {id:7,  names:['燭火靈','提燈鬼','冥府王'],   type:'幽靈',    emoji:'👻'},
+  {id:8,  names:['石石龜','岩甲獸','山岳神'],   type:'岩石',    emoji:'🪨'},
+  {id:9,  names:['雪雪兔','冰晶狼','霜華王'],   type:'冰',      emoji:'❄️'},
+  {id:10, names:['幼幼龍','翔翔龍','帝王龍'],   type:'龍',      emoji:'🥚'},
+  {id:11, names:['花精靈','蝶妖精','百花后'],   type:'妖精',    emoji:'🧚'},
+  {id:12, names:['拳拳袋','鬥士猴','霸拳王'],   type:'格鬥',    emoji:'🥊'},
+  {id:13, names:['毒牙蛇','沼毒蛇','毒皇蛇'],   type:'毒',      emoji:'🐍'},
+  {id:14, names:['沙沙鼹','土盾犰狳','大地守衛'], type:'地面',   emoji:'🐾'},
+  {id:15, names:['念念貓','念力師','宇宙超尊'], type:'超能力',  emoji:'🐱'},
+  {id:16, names:['鐵皮甲蟲','鋼鐵輪','巨型要塞'], type:'鋼鐵',  emoji:'⚙️'},
+  {id:17, names:['小焰馬','烈焰馬','炎帝馬'],   type:'火',      emoji:'🐴'},
+  {id:18, names:['毛毛熊','大懶熊','超級巨熊'], type:'一般',    emoji:'🐾'},
+  {id:19, names:['浮水雛','浪花鴨','海天霸鵬'], type:'水/飛',   emoji:'🐥'},
+  {id:20, names:['焰羽雛','熱炎鷹','烈焰火鳳'], type:'火/飛',   emoji:'🐦'},
+  {id:21, names:['花苞獸','毒蘭獸','百毒花皇'], type:'草/毒',   emoji:'🌱'},
+  {id:22, names:['磁力球','電磁怪','超電導神'], type:'電/鋼',   emoji:'🔋'},
+  {id:23, names:['小海豹','冰川海象','極寒霸主'], type:'水/冰',  emoji:'🦭'},
+  {id:24, names:['影龍蛋','暗翼龍','終焉魔龍'], type:'龍/惡',   emoji:'🥚'},
+  {id:25, names:['小獨角仙','大角甲蟲','破天甲神'], type:'蟲/格鬥', emoji:'🪲'},
+  {id:26, names:['化石蛋','翼龍仔','遠古天霸'], type:'岩石/飛', emoji:'🥚'},
+  {id:27, names:['燈火靈','魂炎燈','奪魂神燈'], type:'幽靈/火', emoji:'🏮'},
+  {id:28, names:['雪球龍蛋','霜翼龍','極寒神龍'], type:'冰/龍', emoji:'❄️'},
+  {id:29, names:['銅拳兵','鐵甲騎士','聖盾守衛'], type:'格鬥/鋼', emoji:'🛡️'},
+  {id:30, names:['夢境小貘','催眠貘','夢魘魔尊'], type:'超能力/妖精', emoji:'💤'},
+];
+const LEGENDARIES = [
+  {id:31, name:'創世神龍',  type:'龍/妖精', emoji:'👑'},
+  {id:32, name:'終界魔龍',  type:'龍/惡',   emoji:'😈'},
+  {id:33, name:'烈陽火鳳',  type:'火/超能力', emoji:'☀️'},
+  {id:34, name:'皎月白狼',  type:'冰/妖精', emoji:'🌙'},
+  {id:35, name:'深海魔皇',  type:'水/鋼',   emoji:'🌊'},
+  {id:36, name:'大地神牛',  type:'地面/格鬥', emoji:'🐂'},
+];
+
+function getStage(score) {
+  if (score >= THRESHOLDS[2]) return 2;
+  if (score >= THRESHOLDS[1]) return 1;
+  return 0;
+}
+function getFamily(lineId) {
+  if (lineId >= 31) return null; // legendary handled separately
+  return FAMILIES.find(f => f.id === lineId) || null;
+}
+function getLegendary(lineId) {
+  return LEGENDARIES.find(f => f.id === lineId) || null;
+}
+function getEffectiveFamily(lineId, score) {
+  if (lineId >= 31) return { legendary: getLegendary(lineId) };
+  const fam = getFamily(lineId);
+  if (!fam) return null;
+  if (score >= LEGENDARY_THRESHOLD) {
+    return { legendary: getLegendary(31 + ((fam.id - 1) % 6)) };
+  }
+  return { fam };
+}
+function imgSrc(lineId, stage, isLeg) {
+  const base = 'assets/pets/';
+  return isLeg ? `${base}pet_${lineId}_l.png` : `${base}pet_${lineId}_${stage}.png`;
+}
+
+// ── Init Firebase ──────────────────────────────────────────────────
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const params = new URLSearchParams(location.search);
+const STUDENT_ID = parseInt(params.get('id')) || 0;
+const PORTAL_DOC = db.collection('portal').doc('class502');
+
+let currentStudent = null;
+let unsubscribe = null;
+
+auth.signInAnonymously()
+  .then(() => listenPortal())
+  .catch(e => showError('登入失敗：' + e.message));
+
+function listenPortal() {
+  unsubscribe = PORTAL_DOC.onSnapshot(snap => {
+    if (!snap.exists) { showError('老師還沒有開啟同步，請告訴老師按「同步學生頁」！'); return; }
+    const data = snap.data();
+    const s = (data.students || []).find(s => s.id === STUDENT_ID);
+    if (!s) { showError(`找不到 ${STUDENT_ID} 號學生，請確認 QR 碼正確。`); return; }
+    currentStudent = s;
+    renderPage(s);
+  }, e => showError('讀取失敗：' + e.message));
+}
+
+// ── Render ─────────────────────────────────────────────────────────
+function renderPage(s) {
+  const app = document.getElementById('app');
+  const lineId = s.petLineId || 0;
+
+  // No pet state
+  if (lineId === 0) {
+    app.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop">
+        <div class="bg-gradient-to-r from-rose-400 to-pink-400 p-5 text-white text-center">
+          <div class="text-sm font-bold opacity-80 mb-1">${s.id} 號</div>
+          <div class="text-2xl font-black">${s.name}</div>
+          <div class="text-sm mt-1 opacity-90">⭐ ${s.score} 分</div>
+        </div>
+        <div class="p-6 flex flex-col items-center">
+          <div class="text-7xl mb-4 select-none">🥚</div>
+          <div class="text-xl font-black text-slate-700 mb-1">還沒有寵物！</div>
+          <div class="text-sm text-slate-400 mb-6 text-center">花費 5 分，抽出你的初始夥伴！</div>
+          ${s.score >= 5
+            ? `<button id="drawBtn" onclick="drawPet()" class="w-full py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-black text-lg rounded-2xl shadow-lg active:scale-95 transition-transform">
+                🎲 花 5 分抽寵物！
+              </button>`
+            : `<div class="w-full py-4 bg-slate-100 text-slate-400 font-bold text-center rounded-2xl">
+                積分不足（需要至少 5 分）
+              </div>`
+          }
+        </div>
+      </div>`;
+    return;
+  }
+
+  const eff = getEffectiveFamily(lineId, s.score);
+  if (!eff) { showError('寵物資料錯誤'); return; }
+
+  if (eff.legendary) {
+    const leg = eff.legendary;
+    const src = imgSrc(leg.id, 0, true);
+    app.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop">
+        <div class="bg-gradient-to-r from-amber-400 to-yellow-400 p-5 text-white text-center">
+          <div class="text-sm font-bold opacity-80 mb-1">${s.id} 號</div>
+          <div class="text-2xl font-black">${s.name}</div>
+          <div class="text-sm mt-1 opacity-90">⭐ ${s.score} 分</div>
+        </div>
+        <div class="p-6 flex flex-col items-center">
+          <div class="text-xs font-black text-amber-600 bg-amber-100 px-3 py-1 rounded-full mb-3">★ 傳說型態</div>
+          <div class="w-36 h-36 bg-gradient-to-br from-amber-50 to-yellow-100 border-2 border-amber-200 rounded-2xl flex items-center justify-center mb-3">
+            <img src="${src}" alt="${leg.name}" class="w-full h-full object-contain p-2" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+            <span class="text-7xl hidden">${leg.emoji}</span>
+          </div>
+          <div class="text-xl font-black text-amber-700 mb-1">${leg.name}</div>
+          <div class="text-xs font-bold px-2 py-1 bg-amber-100 text-amber-700 rounded-full">${leg.type}</div>
+          <div class="mt-4 w-full bg-amber-50 rounded-2xl p-3 text-center text-sm font-bold text-amber-600">✨ 傳說寵物，全班最稀有！</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const fam = eff.fam;
+  const stage = getStage(s.score);
+  const rawNext = THRESHOLDS[stage + 1];
+  const nextThreshold = rawNext ?? (s.score < LEGENDARY_THRESHOLD ? LEGENDARY_THRESHOLD : undefined);
+  const isMax = nextThreshold === undefined;
+  const base = THRESHOLDS[stage] || 0;
+  const progress = isMax ? 100 : Math.min(100, Math.round(((s.score - base) / (nextThreshold - base)) * 100));
+  const src = imgSrc(fam.id, stage, false);
+  const nextMsg = isMax
+    ? '✨ 已完全進化，最強型態！'
+    : nextThreshold === LEGENDARY_THRESHOLD
+      ? `再得 ${nextThreshold - s.score} 分就會升格傳說型態！`
+      : `再得 ${nextThreshold - s.score} 分就會進化成「${fam.names[stage + 1]}」`;
+
+  app.innerHTML = `
+    <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop">
+      <div class="bg-gradient-to-r from-rose-500 to-pink-400 p-5 text-white text-center">
+        <div class="text-sm font-bold opacity-80 mb-1">${s.id} 號</div>
+        <div class="text-2xl font-black">${s.name}</div>
+        <div class="text-sm mt-1 opacity-90">⭐ ${s.score} 分</div>
+      </div>
+      <div class="p-6 flex flex-col items-center">
+        <div class="w-40 h-40 bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-100 rounded-2xl flex items-center justify-center mb-3">
+          <img src="${src}" alt="${fam.names[stage]}" class="w-full h-full object-contain p-2" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <span class="text-8xl hidden">${fam.emoji[0] || fam.emoji}</span>
+        </div>
+        <div class="text-xl font-black text-rose-700 mb-1">${fam.names[stage]}</div>
+        <div class="flex gap-2 mb-4">
+          <span class="text-xs font-bold px-2 py-1 bg-rose-100 text-rose-700 rounded-full">${fam.type}</span>
+          <span class="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-600 rounded-full">${['幼年體','中階體','最終體'][stage]}</span>
+        </div>
+        <div class="w-full mb-2">
+          <div class="flex justify-between text-xs font-bold text-slate-400 mb-1">
+            <span>進化進度</span><span>${progress}%</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2.5">
+            <div class="h-full rounded-full ${isMax ? 'bg-amber-400' : 'bg-rose-400'}" style="width:${progress}%"></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 my-3">
+          ${fam.names.map((n, i) => `
+            ${i > 0 ? '<span class="text-slate-300 text-sm">→</span>' : ''}
+            <div class="flex flex-col items-center ${i === stage ? '' : 'opacity-30'}">
+              <img src="${imgSrc(fam.id, i, false)}" alt="${n}" class="w-9 h-9 object-contain" onerror="this.style.display='none'">
+              <span class="text-[10px] font-bold text-slate-500 mt-0.5">${n}</span>
+            </div>`).join('')}
+        </div>
+        <div class="w-full bg-rose-50 text-rose-600 text-sm font-bold rounded-xl py-2.5 text-center">
+          ${nextMsg}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function drawPet() {
+  const btn = document.getElementById('drawBtn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = '抽取中…';
+  btn.className = btn.className.replace('from-rose-500 to-pink-500', 'from-slate-300 to-slate-400');
+
+  try {
+    let drawnId = 0;
+    await db.runTransaction(async t => {
+      const snap = await t.get(PORTAL_DOC);
+      if (!snap.exists) throw new Error('資料不存在');
+      const data = snap.data();
+      const students = [...(data.students || [])];
+      const idx = students.findIndex(s => s.id === STUDENT_ID);
+      if (idx === -1) throw new Error('找不到學生');
+      if (students[idx].score < 5) throw new Error('積分不足');
+      if (students[idx].petLineId) throw new Error('已有寵物');
+      drawnId = Math.floor(Math.random() * 30) + 1;
+      students[idx] = { ...students[idx], score: students[idx].score - 5, petLineId: drawnId };
+      t.update(PORTAL_DOC, { students });
+    });
+    showGacha(drawnId);
+  } catch (e) {
+    alert('抽取失敗：' + e.message);
+    btn.disabled = false;
+    btn.textContent = '🎲 花 5 分抽寵物！';
+    btn.className = btn.className.replace('from-slate-300 to-slate-400', 'from-rose-500 to-pink-500');
+  }
+}
+
+function showGacha(lineId) {
+  const fam = FAMILIES.find(f => f.id === lineId);
+  if (!fam) return;
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop text-center p-8">
+      <div class="text-3xl font-black text-rose-500 mb-2">✨ 恭喜！</div>
+      <div class="text-slate-500 mb-6">你的初始夥伴是…</div>
+      <div class="w-40 h-40 mx-auto bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-200 rounded-2xl flex items-center justify-center mb-4 animate-shake">
+        <img src="${imgSrc(fam.id, 0, false)}" alt="${fam.names[0]}" class="w-full h-full object-contain p-2" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="text-8xl hidden">${fam.emoji}</span>
+      </div>
+      <div class="text-2xl font-black text-rose-700 mb-1">${fam.names[0]}</div>
+      <div class="text-sm font-bold text-rose-400 mb-6">${fam.type} 系</div>
+      <div class="text-xs text-slate-400">（已自動扣除 5 分）</div>
+    </div>`;
+  // 3 秒後顯示完整頁面
+  setTimeout(() => { if (currentStudent) renderPage({...currentStudent, petLineId: lineId, score: currentStudent.score - 5}); }, 3000);
+}
+
+function showError(msg) {
+  document.getElementById('app').innerHTML = `
+    <div class="bg-white rounded-3xl shadow-xl p-8 text-center">
+      <div class="text-5xl mb-4">😢</div>
+      <div class="text-slate-600 font-bold">${msg}</div>
+    </div>`;
+}
+</script>
+</body>
+</html>
