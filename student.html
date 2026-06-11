@@ -3,26 +3,104 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>我的寵物</title>
+<meta name="theme-color" content="#2B1D0E">
+<title>我的寵物夥伴</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
+  body {
+    font-family: 'Noto Sans TC', system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    background: radial-gradient(ellipse at 50% 30%, #4A3318 0%, #2B1D0E 65%, #1C1206 100%);
+    min-height: 100vh;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes pop { 0%{transform:scale(0.4);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
-  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-  .animate-spin-slow { animation: spin 1.2s linear infinite; }
+  @keyframes pop { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.06)} 100%{transform:scale(1);opacity:1} }
+  @keyframes shakeHard {
+    0%,100%{transform:rotate(0)} 15%{transform:rotate(-4deg)} 30%{transform:rotate(4deg)}
+    45%{transform:rotate(-5deg)} 60%{transform:rotate(5deg)} 75%{transform:rotate(-3deg)} 90%{transform:rotate(3deg)}
+  }
+  @keyframes floaty { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  @keyframes shine { from{background-position:-200% 0} to{background-position:200% 0} }
+  @keyframes twinkle { 0%,100%{opacity:0.25} 50%{opacity:1} }
   .animate-pop { animation: pop 0.5s cubic-bezier(.34,1.56,.64,1) forwards; }
-  .animate-shake { animation: shake 0.4s ease; }
+  .animate-floaty { animation: floaty 2.4s ease-in-out infinite; }
+  .shaking { animation: shakeHard 1s ease-in-out; }
+
+  .card-frame {
+    background: linear-gradient(165deg, #F8ECD0 0%, #EFDCAE 100%);
+    border-radius: 20px;
+    border: 3px solid #C9A227;
+    box-shadow: 0 0 0 3px #4A3318, 0 0 0 5px #8A6A14, 0 18px 45px rgba(0,0,0,.55), inset 0 0 35px rgba(170,130,50,.22);
+    position: relative;
+  }
+  .card-frame.legendary {
+    background: linear-gradient(165deg, #FFF3CF 0%, #F4DC96 100%);
+    border-color: #E8B923;
+    box-shadow: 0 0 0 3px #4A3318, 0 0 0 5px #C9A227, 0 0 28px rgba(232,185,35,.5), 0 18px 45px rgba(0,0,0,.55), inset 0 0 35px rgba(200,150,40,.3);
+  }
+  .corner { position: absolute; color: #B08A1E; font-size: 14px; line-height: 1; pointer-events: none; }
+
+  .ribbon {
+    background: linear-gradient(90deg, #8A6A14, #C9A227 30%, #E8C84A 50%, #C9A227 70%, #8A6A14);
+    border: 1.5px solid #5C430C;
+    color: #FFF7E0;
+    text-shadow: 0 1px 2px rgba(60,40,0,.6);
+  }
+  .art-box {
+    background: radial-gradient(circle at 50% 38%, #FFFDF4 0%, #F7EBCB 75%);
+    border: 2px solid #C9A227;
+    box-shadow: inset 0 0 0 3px #F8ECD0, inset 0 0 0 4px #D9BC6A, inset 0 4px 14px rgba(150,110,30,.25);
+  }
+  .holo { position: relative; overflow: hidden; }
+  .holo::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(110deg, transparent 32%, rgba(255,255,255,.55) 50%, transparent 68%);
+    background-size: 220% 100%;
+    animation: shine 2.6s linear infinite;
+    pointer-events: none;
+  }
+  .gold-btn {
+    background: linear-gradient(180deg, #F0D060, #C9A227);
+    border: 2px solid #8A6A14;
+    box-shadow: 0 5px 0 #8A6A14, 0 8px 16px rgba(0,0,0,.35);
+    color: #2B1D0E;
+    transition: all .15s ease;
+  }
+  .gold-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #8A6A14; }
+  .card-back-face {
+    background:
+      radial-gradient(circle at 50% 45%, rgba(232,200,74,.18) 0%, transparent 55%),
+      repeating-linear-gradient(45deg, #33240F 0 10px, #2B1D0E 10px 20px);
+    border-radius: 20px;
+    border: 3px solid #C9A227;
+    box-shadow: 0 0 0 3px #4A3318, 0 0 0 5px #8A6A14, 0 18px 45px rgba(0,0,0,.55);
+  }
+  .flip-scene { perspective: 1100px; }
+  .flip-card { transform-style: preserve-3d; transition: transform .85s cubic-bezier(.45,0,.2,1); position: relative; }
+  .flip-card.flipped { transform: rotateY(180deg); }
+  .face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .front-face { transform: rotateY(180deg); position: absolute; inset: 0; }
+  .star { position: fixed; color: #E8C84A; animation: twinkle 3s ease-in-out infinite; pointer-events: none; }
+  .progress-track { background: #D9C28F; box-shadow: inset 0 2px 4px rgba(110,80,20,.45); }
+  .progress-fill { background: linear-gradient(90deg, #C9A227, #E8C84A); box-shadow: 0 0 8px rgba(232,200,74,.6); }
 </style>
 </head>
-<body class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen flex items-center justify-center p-4">
+<body class="flex items-center justify-center p-4">
+
+<span class="star text-xs" style="top:8%;left:12%">✦</span>
+<span class="star text-sm" style="top:15%;right:10%;animation-delay:.8s">✦</span>
+<span class="star text-xs" style="bottom:18%;left:8%;animation-delay:1.5s">✦</span>
+<span class="star text-sm" style="bottom:10%;right:14%;animation-delay:2.2s">✦</span>
 
 <div id="app" class="w-full max-w-sm">
   <div id="loading" class="text-center py-16">
-    <div class="text-5xl mb-4">🔄</div>
-    <div class="text-slate-500 font-bold">載入中…</div>
+    <div class="w-12 h-12 border-4 border-[#C9A227] border-t-transparent rounded-full mx-auto mb-4" style="animation:spin 1s linear infinite"></div>
+    <div class="text-[#E8C84A] font-bold tracking-widest">召喚陣啟動中…</div>
   </div>
 </div>
 
@@ -86,7 +164,7 @@ function getStage(score) {
   return 0;
 }
 function getFamily(lineId) {
-  if (lineId >= 31) return null; // legendary handled separately
+  if (lineId >= 31) return null;
   return FAMILIES.find(f => f.id === lineId) || null;
 }
 function getLegendary(lineId) {
@@ -106,7 +184,6 @@ function imgSrc(lineId, stage, isLeg) {
   return isLeg ? `${base}pet_${lineId}_l.png` : `${base}pet_${lineId}_${stage}.png`;
 }
 
-// ── Init Firebase ──────────────────────────────────────────────────
 firebase.initializeApp(FIREBASE_CONFIG);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -116,6 +193,7 @@ const PORTAL_DOC = db.collection('portal').doc('class502');
 
 let currentStudent = null;
 let unsubscribe = null;
+let suppressRender = false;
 
 auth.signInAnonymously()
   .then(() => listenPortal())
@@ -128,35 +206,48 @@ function listenPortal() {
     const s = (data.students || []).find(s => s.id === STUDENT_ID);
     if (!s) { showError(`找不到 ${STUDENT_ID} 號學生，請確認 QR 碼正確。`); return; }
     currentStudent = s;
-    renderPage(s);
+    if (!suppressRender) renderPage(s);
   }, e => showError('讀取失敗：' + e.message));
 }
 
-// ── Render ─────────────────────────────────────────────────────────
+function headerHTML(s) {
+  return `
+    <div class="text-center mb-4">
+      <div class="text-[#C9A227] text-[11px] font-bold tracking-[0.35em] mb-1">五年二班 · 冒險者</div>
+      <div class="text-[#FFF7E0] text-2xl font-black" style="text-shadow:0 2px 6px rgba(0,0,0,.5)">${s.name} <span class="text-sm font-bold text-[#D9BC6A]">${s.id} 號</span></div>
+      <div class="inline-flex items-center gap-1.5 mt-2 bg-[#1C1206] border border-[#8A6A14] rounded-full px-4 py-1.5 text-[#E8C84A] font-black text-sm shadow-lg">
+        🪙 ${s.score} 分
+      </div>
+    </div>`;
+}
+
+function cornersHTML() {
+  return `
+    <span class="corner" style="top:8px;left:10px">✦</span>
+    <span class="corner" style="top:8px;right:10px">✦</span>
+    <span class="corner" style="bottom:8px;left:10px">✦</span>
+    <span class="corner" style="bottom:8px;right:10px">✦</span>`;
+}
+
 function renderPage(s) {
   const app = document.getElementById('app');
   const lineId = s.petLineId || 0;
 
-  // No pet state
   if (lineId === 0) {
+    const canDraw = s.score >= 5;
     app.innerHTML = `
-      <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop">
-        <div class="bg-gradient-to-r from-rose-400 to-pink-400 p-5 text-white text-center">
-          <div class="text-sm font-bold opacity-80 mb-1">${s.id} 號</div>
-          <div class="text-2xl font-black">${s.name}</div>
-          <div class="text-sm mt-1 opacity-90">⭐ ${s.score} 分</div>
-        </div>
-        <div class="p-6 flex flex-col items-center">
-          <div class="text-7xl mb-4 select-none">🥚</div>
-          <div class="text-xl font-black text-slate-700 mb-1">還沒有寵物！</div>
-          <div class="text-sm text-slate-400 mb-6 text-center">花費 5 分，抽出你的初始夥伴！</div>
-          ${s.score >= 5
-            ? `<button id="drawBtn" onclick="drawPet()" class="w-full py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-black text-lg rounded-2xl shadow-lg active:scale-95 transition-transform">
-                🎲 花 5 分抽寵物！
-              </button>`
-            : `<div class="w-full py-4 bg-slate-100 text-slate-400 font-bold text-center rounded-2xl">
-                積分不足（需要至少 5 分）
-              </div>`
+      ${headerHTML(s)}
+      <div class="card-back-face p-6 animate-pop">
+        ${cornersHTML()}
+        <div class="flex flex-col items-center py-4">
+          <div class="w-24 h-24 rounded-full border-2 border-[#C9A227] bg-[#1C1206] flex items-center justify-center mb-4 animate-floaty" style="box-shadow:0 0 24px rgba(232,200,74,.35)">
+            <span class="text-5xl select-none">🥚</span>
+          </div>
+          <div class="text-[#E8C84A] text-xl font-black mb-1">未知的夥伴沉睡中</div>
+          <div class="text-[#B89B5A] text-sm font-bold mb-6 text-center">支付 5 分召喚費，喚醒你的初始夥伴！</div>
+          ${canDraw
+            ? `<button id="drawBtn" onclick="drawPet()" class="gold-btn w-full py-4 rounded-2xl font-black text-lg cursor-pointer">⚔ 召喚夥伴（花費 5 分）</button>`
+            : `<div class="w-full py-4 rounded-2xl bg-[#3A2A12] border-2 border-[#5C430C] text-[#8A7A54] font-bold text-center">🔒 還差 ${5 - s.score} 分才能召喚</div>`
           }
         </div>
       </div>`;
@@ -170,21 +261,20 @@ function renderPage(s) {
     const leg = eff.legendary;
     const src = imgSrc(leg.id, 0, true);
     app.innerHTML = `
-      <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop">
-        <div class="bg-gradient-to-r from-amber-400 to-yellow-400 p-5 text-white text-center">
-          <div class="text-sm font-bold opacity-80 mb-1">${s.id} 號</div>
-          <div class="text-2xl font-black">${s.name}</div>
-          <div class="text-sm mt-1 opacity-90">⭐ ${s.score} 分</div>
+      ${headerHTML(s)}
+      <div class="card-frame legendary p-5 animate-pop">
+        ${cornersHTML()}
+        <div class="flex justify-center -mt-9 mb-3">
+          <div class="ribbon rounded-full px-5 py-1 text-sm font-black tracking-[0.25em]">★ 傳說 · ${leg.type} ★</div>
         </div>
-        <div class="p-6 flex flex-col items-center">
-          <div class="text-xs font-black text-amber-600 bg-amber-100 px-3 py-1 rounded-full mb-3">★ 傳說型態</div>
-          <div class="w-36 h-36 bg-gradient-to-br from-amber-50 to-yellow-100 border-2 border-amber-200 rounded-2xl flex items-center justify-center mb-3">
-            <img src="${src}" alt="${leg.name}" class="w-full h-full object-contain p-2" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-            <span class="text-7xl hidden">${leg.emoji}</span>
-          </div>
-          <div class="text-xl font-black text-amber-700 mb-1">${leg.name}</div>
-          <div class="text-xs font-bold px-2 py-1 bg-amber-100 text-amber-700 rounded-full">${leg.type}</div>
-          <div class="mt-4 w-full bg-amber-50 rounded-2xl p-3 text-center text-sm font-bold text-amber-600">✨ 傳說寵物，全班最稀有！</div>
+        <div class="art-box holo rounded-xl w-44 h-44 mx-auto flex items-center justify-center mb-4">
+          <img src="${src}" alt="${leg.name}" class="w-full h-full object-contain p-3 animate-floaty" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+          <span class="text-7xl hidden">${leg.emoji}</span>
+        </div>
+        <div class="text-center text-2xl font-black text-[#6B4E08] mb-1" style="text-shadow:0 1px 0 #FFF3CF">${leg.name}</div>
+        <div class="text-center text-xs font-bold text-[#8A6A14] tracking-widest mb-4">最終傳說型態</div>
+        <div class="rounded-xl border border-[#C9A227] bg-[#FFF7E0] py-2.5 px-3 text-center text-sm font-black text-[#8A6A14]">
+          ✨ 傳說降臨，全班最稀有的存在！
         </div>
       </div>`;
     return;
@@ -201,45 +291,42 @@ function renderPage(s) {
   const nextMsg = isMax
     ? '✨ 已完全進化，最強型態！'
     : nextThreshold === LEGENDARY_THRESHOLD
-      ? `再得 ${nextThreshold - s.score} 分就會升格傳說型態！`
-      : `再得 ${nextThreshold - s.score} 分就會進化成「${fam.names[stage + 1]}」`;
+      ? `再得 ${nextThreshold - s.score} 分，升格傳說型態！`
+      : `再得 ${nextThreshold - s.score} 分，進化成「${fam.names[stage + 1]}」`;
 
   app.innerHTML = `
-    <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop">
-      <div class="bg-gradient-to-r from-rose-500 to-pink-400 p-5 text-white text-center">
-        <div class="text-sm font-bold opacity-80 mb-1">${s.id} 號</div>
-        <div class="text-2xl font-black">${s.name}</div>
-        <div class="text-sm mt-1 opacity-90">⭐ ${s.score} 分</div>
+    ${headerHTML(s)}
+    <div class="card-frame p-5 animate-pop">
+      ${cornersHTML()}
+      <div class="flex justify-center -mt-9 mb-3">
+        <div class="ribbon rounded-full px-5 py-1 text-sm font-black tracking-[0.25em]">★ ${fam.type} 系 ★</div>
       </div>
-      <div class="p-6 flex flex-col items-center">
-        <div class="w-40 h-40 bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-100 rounded-2xl flex items-center justify-center mb-3">
-          <img src="${src}" alt="${fam.names[stage]}" class="w-full h-full object-contain p-2" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-          <span class="text-8xl hidden">${fam.emoji[0] || fam.emoji}</span>
-        </div>
-        <div class="text-xl font-black text-rose-700 mb-1">${fam.names[stage]}</div>
-        <div class="flex gap-2 mb-4">
-          <span class="text-xs font-bold px-2 py-1 bg-rose-100 text-rose-700 rounded-full">${fam.type}</span>
-          <span class="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-600 rounded-full">${['幼年體','中階體','最終體'][stage]}</span>
-        </div>
-        <div class="w-full mb-2">
-          <div class="flex justify-between text-xs font-bold text-slate-400 mb-1">
-            <span>進化進度</span><span>${progress}%</span>
-          </div>
-          <div class="w-full bg-slate-100 rounded-full h-2.5">
-            <div class="h-full rounded-full ${isMax ? 'bg-amber-400' : 'bg-rose-400'}" style="width:${progress}%"></div>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 my-3">
-          ${fam.names.map((n, i) => `
-            ${i > 0 ? '<span class="text-slate-300 text-sm">→</span>' : ''}
-            <div class="flex flex-col items-center ${i === stage ? '' : 'opacity-30'}">
-              <img src="${imgSrc(fam.id, i, false)}" alt="${n}" class="w-9 h-9 object-contain" onerror="this.style.display='none'">
-              <span class="text-[10px] font-bold text-slate-500 mt-0.5">${n}</span>
-            </div>`).join('')}
-        </div>
-        <div class="w-full bg-rose-50 text-rose-600 text-sm font-bold rounded-xl py-2.5 text-center">
-          ${nextMsg}
-        </div>
+      <div class="art-box rounded-xl w-44 h-44 mx-auto flex items-center justify-center mb-3">
+        <img src="${src}" alt="${fam.names[stage]}" class="w-full h-full object-contain p-3 animate-floaty" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="text-7xl hidden">${fam.emoji}</span>
+      </div>
+      <div class="text-center text-2xl font-black text-[#5C430C] mb-1" style="text-shadow:0 1px 0 #F8ECD0">${fam.names[stage]}</div>
+      <div class="text-center mb-4">
+        <span class="inline-block text-[11px] font-black px-3 py-0.5 rounded-full bg-[#5C430C] text-[#F0D060] tracking-widest">${['幼年體','中階體','最終體'][stage]}</span>
+      </div>
+      <div class="mb-1 flex justify-between text-[11px] font-black text-[#8A6A14]">
+        <span>進化之路</span><span>${progress}%</span>
+      </div>
+      <div class="progress-track w-full rounded-full h-3 mb-4 overflow-hidden">
+        <div class="progress-fill h-full rounded-full" style="width:${progress}%"></div>
+      </div>
+      <div class="flex items-center justify-center gap-1.5 mb-4">
+        ${fam.names.map((n, i) => `
+          ${i > 0 ? '<span class="text-[#B08A1E] text-xs font-black">➤</span>' : ''}
+          <div class="flex flex-col items-center">
+            <div class="w-12 h-12 rounded-lg flex items-center justify-center ${i === stage ? 'bg-[#FFF7E0] border-2 border-[#C9A227]' : 'bg-[#E8D5A8] border border-[#C9B070] opacity-45'}" ${i === stage ? 'style="box-shadow:0 0 10px rgba(201,162,39,.5)"' : ''}>
+              <img src="${imgSrc(fam.id, i, false)}" alt="${n}" class="w-10 h-10 object-contain ${i > stage ? 'grayscale' : ''}" onerror="this.style.display='none'">
+            </div>
+            <span class="text-[10px] font-bold ${i === stage ? 'text-[#5C430C]' : 'text-[#A08A50]'} mt-1">${n}</span>
+          </div>`).join('')}
+      </div>
+      <div class="rounded-xl border border-[#C9A227] bg-[#FFF7E0] py-2.5 px-3 text-center text-sm font-black text-[#8A6A14]">
+        ${nextMsg}
       </div>
     </div>`;
 }
@@ -248,11 +335,12 @@ async function drawPet() {
   const btn = document.getElementById('drawBtn');
   if (!btn) return;
   btn.disabled = true;
-  btn.textContent = '抽取中…';
-  btn.className = btn.className.replace('from-rose-500 to-pink-500', 'from-slate-300 to-slate-400');
+  btn.textContent = '召喚陣詠唱中…';
+  btn.classList.add('opacity-60');
 
   try {
     let drawnId = 0;
+    suppressRender = true;
     await db.runTransaction(async t => {
       const snap = await t.get(PORTAL_DOC);
       if (!snap.exists) throw new Error('資料不存在');
@@ -268,38 +356,57 @@ async function drawPet() {
     });
     showGacha(drawnId);
   } catch (e) {
-    alert('抽取失敗：' + e.message);
-    btn.disabled = false;
-    btn.textContent = '🎲 花 5 分抽寵物！';
-    btn.className = btn.className.replace('from-slate-300 to-slate-400', 'from-rose-500 to-pink-500');
+    suppressRender = false;
+    alert('召喚失敗：' + e.message);
+    if (currentStudent) renderPage(currentStudent);
   }
 }
 
 function showGacha(lineId) {
   const fam = FAMILIES.find(f => f.id === lineId);
-  if (!fam) return;
+  if (!fam) { suppressRender = false; return; }
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div class="bg-white rounded-3xl shadow-xl overflow-hidden animate-pop text-center p-8">
-      <div class="text-3xl font-black text-rose-500 mb-2">✨ 恭喜！</div>
-      <div class="text-slate-500 mb-6">你的初始夥伴是…</div>
-      <div class="w-40 h-40 mx-auto bg-gradient-to-br from-rose-50 to-pink-100 border-2 border-rose-200 rounded-2xl flex items-center justify-center mb-4 animate-shake">
-        <img src="${imgSrc(fam.id, 0, false)}" alt="${fam.names[0]}" class="w-full h-full object-contain p-2" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <span class="text-8xl hidden">${fam.emoji}</span>
+    <div class="text-center mb-4">
+      <div class="text-[#E8C84A] text-lg font-black tracking-[0.3em]" style="text-shadow:0 0 12px rgba(232,200,74,.6)">召喚中…</div>
+    </div>
+    <div class="flip-scene">
+      <div id="flipCard" class="flip-card shaking" style="height:420px">
+        <div class="face card-back-face absolute inset-0 flex flex-col items-center justify-center">
+          ${cornersHTML()}
+          <div class="w-28 h-28 rounded-full border-2 border-[#C9A227] bg-[#1C1206] flex items-center justify-center" style="box-shadow:0 0 30px rgba(232,200,74,.45)">
+            <span class="text-6xl select-none">🥚</span>
+          </div>
+          <div class="text-[#B89B5A] font-black tracking-[0.4em] mt-6 text-sm">？？？</div>
+        </div>
+        <div class="face front-face card-frame p-5 flex flex-col items-center justify-center">
+          ${cornersHTML()}
+          <div class="ribbon rounded-full px-5 py-1 text-sm font-black tracking-[0.25em] mb-4">★ ${fam.type} 系 ★</div>
+          <div class="art-box holo rounded-xl w-44 h-44 flex items-center justify-center mb-4">
+            <img src="${imgSrc(fam.id, 0, false)}" alt="${fam.names[0]}" class="w-full h-full object-contain p-3" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+            <span class="text-7xl hidden">${fam.emoji}</span>
+          </div>
+          <div class="text-2xl font-black text-[#5C430C]" style="text-shadow:0 1px 0 #F8ECD0">${fam.names[0]}</div>
+          <div class="text-sm font-black text-[#8A6A14] mt-1 mb-3">✨ 召喚成功！</div>
+          <div class="text-[11px] font-bold text-[#A08A50]">（已扣除 5 分召喚費）</div>
+        </div>
       </div>
-      <div class="text-2xl font-black text-rose-700 mb-1">${fam.names[0]}</div>
-      <div class="text-sm font-bold text-rose-400 mb-6">${fam.type} 系</div>
-      <div class="text-xs text-slate-400">（已自動扣除 5 分）</div>
     </div>`;
-  // 3 秒後顯示完整頁面
-  setTimeout(() => { if (currentStudent) renderPage({...currentStudent, petLineId: lineId, score: currentStudent.score - 5}); }, 3000);
+
+  const card = document.getElementById('flipCard');
+  setTimeout(() => card.classList.add('flipped'), 1150);
+  setTimeout(() => {
+    suppressRender = false;
+    if (currentStudent) renderPage(currentStudent);
+  }, 5000);
 }
 
 function showError(msg) {
   document.getElementById('app').innerHTML = `
-    <div class="bg-white rounded-3xl shadow-xl p-8 text-center">
-      <div class="text-5xl mb-4">😢</div>
-      <div class="text-slate-600 font-bold">${msg}</div>
+    <div class="card-frame p-8 text-center animate-pop">
+      ${cornersHTML()}
+      <div class="text-5xl mb-4">📜</div>
+      <div class="text-[#5C430C] font-black">${msg}</div>
     </div>`;
 }
 </script>
