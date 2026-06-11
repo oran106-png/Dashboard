@@ -767,7 +767,9 @@
                         }).then(r => r.json()).then(d => d.fields || {});
                         const portalTime = new Date(f.updatedAt?.stringValue || 0).getTime();
                         const lastSync = parseInt(localStorage.getItem('class502_portal_sync_time') || '0');
-                        if (portalTime <= lastSync) return;
+                        const savedHws = JSON.parse(localStorage.getItem('class502_homeworks_v10') || '[]');
+                        const hasHwData = savedHws.some(h => h.title);
+                        if (portalTime <= lastSync && hasHwData) return;
                         if (f.students?.arrayValue?.values) {
                             const sts = f.students.arrayValue.values.map(v => { const ff = v.mapValue.fields; return { id: parseInt(ff.id.integerValue), name: ff.name.stringValue, score: parseInt(ff.score.integerValue) }; });
                             localStorage.setItem('class502_student_data_v8', JSON.stringify(sts));
