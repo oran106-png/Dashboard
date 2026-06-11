@@ -17,40 +17,182 @@
     <!-- Markdown 解析器 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+
     <!-- Firebase 雲端同步 (compat 版，提供全域 firebase) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
     
     <style>
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+        /* ===== Animations ===== */
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        .animate-pop { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes pop { 0% { transform: scale(0.88); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .animate-pop { animation: pop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) both; }
+        @keyframes slide-up { from { transform: translateY(18px); opacity:0; } to { transform: translateY(0); opacity:1; } }
         .animate-slide-up { animation: slide-up 0.3s ease-out forwards; }
         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 3s linear infinite; }
+        @keyframes shine { from{background-position:-200% 0} to{background-position:200% 0} }
+        @keyframes twinkle { 0%,100%{opacity:.2} 50%{opacity:.8} }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        body { background-color: #f8fafc; font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        
-        .schedule-row:hover td { background-color: #f1f5f9; }
-        .schedule-active td { background-color: #fef9c3 !important; border-top: 2px solid #fbbf24; border-bottom: 2px solid #fbbf24; }
-        .schedule-active td:first-child { border-left: 2px solid #fbbf24; }
-        .schedule-active td:last-child { border-right: 2px solid #fbbf24; }
-
         .writing-vertical-lr { writing-mode: vertical-lr; }
         .cursor-grab { cursor: grab; }
         .cursor-grabbing { cursor: grabbing; }
-        
+
+        /* ===== ADVENTURE GUILD MASTER THEME ===== */
+        body {
+            background: radial-gradient(ellipse at 50% 0%, #3D2B12 0%, #1C1208 55%, #0E0806 100%);
+            background-attachment: fixed;
+            font-family: 'Noto Sans TC', 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            color: #2B1D0E;
+        }
+
+        /* Header */
+        .rpg-header {
+            background: rgba(14,8,3,.97) !important;
+            border-bottom: 2px solid #C9A227 !important;
+            box-shadow: 0 2px 20px rgba(0,0,0,.65) !important;
+        }
+        .rpg-header .rpg-title-input {
+            color: #E8C84A !important;
+            text-shadow: 0 0 12px rgba(232,200,74,.4);
+        }
+        .rpg-header .rpg-clock { color: #E8C84A !important; }
+        .rpg-header .rpg-clock-label { color: #8A6A30 !important; }
+        .rpg-header .rpg-icon-btn {
+            background: rgba(201,162,39,.14) !important;
+            border-color: #5C430C !important;
+            color: #C9A227 !important;
+        }
+        .rpg-header .rpg-icon-btn:hover {
+            background: rgba(201,162,39,.28) !important;
+        }
+        .rpg-header .rpg-school-icon {
+            background: linear-gradient(180deg, #E8C84A, #C9A227) !important;
+            color: #2B1D0E !important;
+        }
+        .rpg-header .rpg-ai-btn {
+            background: linear-gradient(135deg, #8A6A14, #C9A227, #E8C84A) !important;
+        }
+
+        /* Bottom nav */
+        .rpg-nav {
+            background: rgba(14,8,3,.97) !important;
+            border-top: 2px solid #C9A227 !important;
+            box-shadow: 0 -4px 20px rgba(0,0,0,.55) !important;
+        }
+
+        /* ===== Cards / Panels ===== */
+        main .rounded-3xl {
+            background: linear-gradient(165deg, #F8ECD0 0%, #EDD98A 100%) !important;
+            border: 2px solid #C9A227 !important;
+            box-shadow: 0 0 0 2px #4A3318, 0 10px 32px rgba(0,0,0,.52), inset 0 0 22px rgba(180,140,50,.1) !important;
+            color: #2B1D0E;
+        }
+        /* Card interior nested bg */
+        main .rounded-3xl .bg-white { background: #FFF7E0 !important; }
+        main .rounded-3xl .bg-slate-50 { background: rgba(248,236,208,.8) !important; }
+        main .rounded-3xl .bg-slate-100 { background: rgba(225,190,90,.25) !important; }
+        main .rounded-3xl .bg-slate-200 { background: rgba(225,190,90,.45) !important; }
+        main .rounded-3xl .border-slate-200 { border-color: #C9A870 !important; }
+        main .rounded-3xl .border-slate-100 { border-color: rgba(201,168,80,.35) !important; }
+        main .rounded-3xl .divide-y > * { border-color: rgba(201,168,80,.35) !important; }
+        main .rounded-3xl .divide-x > * { border-color: rgba(201,168,80,.35) !important; }
+
+        /* Card section headers (indigo/blue/slate tinted bars) */
+        main .rounded-3xl .bg-indigo-50 { background: rgba(139,106,20,.22) !important; }
+        main .rounded-3xl .border-indigo-100 { border-color: #C9A227 !important; }
+        main .rounded-3xl .bg-indigo-100 { background: rgba(201,162,39,.3) !important; }
+        main .rounded-3xl .bg-slate-100:first-child { background: rgba(139,106,20,.18) !important; }
+        main .rounded-3xl > div.p-4:first-child,
+        main .rounded-3xl > div.p-3:first-child { border-bottom-color: #C9A227 !important; }
+
+        /* Text overrides inside cards */
+        main .rounded-3xl .text-slate-800 { color: #2B1D0E !important; }
+        main .rounded-3xl .text-slate-700 { color: #3A2808 !important; }
+        main .rounded-3xl .text-slate-600 { color: #5C430C !important; }
+        main .rounded-3xl .text-slate-500 { color: #7A5A20 !important; }
+        main .rounded-3xl .text-slate-400 { color: #9A7A40 !important; }
+        main .rounded-3xl .text-slate-300 { color: #B09A60 !important; }
+        main .rounded-3xl .text-indigo-800 { color: #2B1D0E !important; }
+        main .rounded-3xl .text-indigo-600 { color: #7A5A14 !important; }
+        main .rounded-3xl .text-indigo-600.font-bold { color: #7A5A14 !important; }
+        main .rounded-3xl .text-blue-600 { color: #8A6A14 !important; }
+        main .rounded-3xl .text-blue-500 { color: #9A7A20 !important; }
+        main .rounded-3xl input { color: #2B1D0E !important; }
+        main .rounded-3xl input::placeholder { color: #9A7A40 !important; }
+        main .rounded-3xl select { color: #2B1D0E !important; background: #FFF7E0 !important; border-color: #C9A227 !important; }
+        main .rounded-3xl textarea { color: #2B1D0E !important; background: #FFF7E0 !important; }
+
+        /* Timer */
+        main .rounded-3xl .font-mono { color: #3A2808 !important; }
+        main .rounded-3xl .text-blue-600.font-mono,
+        main .rounded-3xl .text-blue-600.font-black { color: #7A5A14 !important; }
+        main .rounded-3xl .text-red-600 { color: #c0392b !important; }
+        main .rounded-3xl .bg-red-50 { background: #FFF0D0 !important; }
+        main .rounded-3xl .border-red-400 { border-color: #e74c3c !important; }
+
+        /* Quick tool bar */
+        main .bg-emerald-100 { background: rgba(34,197,94,.18) !important; }
+        main .text-emerald-700 { color: #16a34a !important; }
+        main .bg-indigo-100 { background: rgba(99,102,241,.18) !important; }
+        main .text-indigo-700 { color: #6366f1 !important; }
+
+        /* Free students card (emerald) */
+        main .rounded-3xl.border-emerald-200 { border-color: #22c55e !important; }
+        main .rounded-3xl .bg-emerald-50 { background: rgba(34,197,94,.12) !important; }
+        main .rounded-3xl .border-emerald-100 { border-color: rgba(34,197,94,.3) !important; }
+        main .rounded-3xl .text-emerald-800 { color: #166534 !important; }
+
+        /* Page headings */
+        main h2.font-bold,
+        main .text-2xl.font-bold {
+            color: #E8C84A !important;
+            text-shadow: 0 1px 5px rgba(0,0,0,.45);
+        }
+
+        /* Volume widget */
+        .rpg-vol-widget {
+            background: rgba(14,8,3,.94) !important;
+            border-color: inherit;
+            box-shadow: 0 4px 20px rgba(0,0,0,.55) !important;
+        }
+        .rpg-vol-widget .text-slate-400 { color: #7A6030 !important; }
+
+        /* Rounded-2xl inner cards */
+        main .rounded-2xl.border-dashed { border-color: #C9A870 !important; background: rgba(248,236,208,.35) !important; }
+
+        /* Homework active timer highlight */
+        .schedule-row:hover td { background-color: rgba(201,162,39,.12) !important; }
+        .schedule-active td { background-color: rgba(232,200,74,.18) !important; border-top: 2px solid #C9A227 !important; border-bottom: 2px solid #C9A227 !important; }
+        .schedule-active td:first-child { border-left: 2px solid #C9A227 !important; }
+        .schedule-active td:last-child { border-right: 2px solid #C9A227 !important; }
+
         .bg-grid-pattern {
             background-size: 40px 40px;
-            background-image: radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+            background-image: radial-gradient(circle, rgba(201,162,39,.2) 1px, transparent 1px);
         }
+
+        /* Modals */
+        .rpg-modal-card {
+            background: linear-gradient(165deg, #F8ECD0, #EDD98A) !important;
+            border: 2px solid #C9A227 !important;
+            box-shadow: 0 0 0 2px #4A3318, 0 24px 60px rgba(0,0,0,.7) !important;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(201,162,39,.1); }
+        ::-webkit-scrollbar-thumb { background: #8A6A14; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #C9A227; }
     </style>
 </head>
 <body>
@@ -705,6 +847,13 @@
             const setAllHomeworkStatus = (hi, statusValue) => { if (!homeworks[hi].title.trim()) { alert('請先輸入作業名稱！'); return; } if (confirm(`確定要將此項作業設為全${statusValue === 2 ? '綠(完成)' : '黃(未訂正)'}嗎？`)) { setHomeworks(p => { const n = [...p]; n[hi] = {...n[hi], status: Array(STUDENT_COUNT).fill(statusValue)}; return n; }); } };
             const clearDebt = (id) => { setOutstandingHomeworks(prev => prev.filter(d => d.id !== id)); };
 
+            const clearAllPets = async () => {
+                if (!confirm('確定清空全班所有寵物？此動作無法復原，清空後需重新推送才會同步學生頁。')) return;
+                setPetAssignments({});
+                setPetNames({});
+                setTimeout(() => pushToCloud(true), 500);
+            };
+
             const addSelfReflection = () => {
                 const student = studentData.find(s => s.id === parseInt(selectedReflectStudent));
                 if (!student) return;
@@ -1048,9 +1197,10 @@
                     // 同步學生頁 portal（公開可讀）
                     const curStudents = JSON.parse(localStorage.getItem('class502_student_data_v8') || '[]');
                     const curAssign = JSON.parse(localStorage.getItem('class502_pet_assignments_v1') || '{}');
+                    const freeIds = new Set(freeStudents.map(s => s.id));
                     if (curStudents.length) {
                         await cloudDbRef.current.collection('portal').doc('class502').set({
-                            students: curStudents.map(s => ({ id: s.id, name: s.name, score: s.score, petLineId: curAssign[s.id] || 0 })),
+                            students: curStudents.map(s => ({ id: s.id, name: s.name, score: s.score, petLineId: curAssign[s.id] || 0, isFree: freeIds.has(s.id) })),
                             updatedAt: new Date().toISOString()
                         });
                     }
@@ -1092,44 +1242,42 @@
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
-                { id: 'dashboard', label: '儀表板', icon: Icons.LayoutDashboard, color: 'text-blue-600', bg: 'bg-blue-50', visible: true },
-                { id: 'exam', label: '考試模式', icon: Icons.ClipboardList, color: 'text-yellow-600', bg: 'bg-yellow-50', visible: moduleConfig.tabExam },
-                { id: 'seats', label: '座位表', icon: Icons.Grid, color: 'text-indigo-600', bg: 'bg-indigo-50', visible: moduleConfig.tabSeats },
-                { id: 'score', label: '積分榜', icon: Icons.Trophy, color: 'text-amber-600', bg: 'bg-amber-50', visible: moduleConfig.tabScore },
-                { id: 'redeem', label: '福利社', icon: Icons.Gift, color: 'text-purple-600', bg: 'bg-purple-50', visible: moduleConfig.tabRedeem },
-                { id: 'records', label: '行為紀錄', icon: Icons.FileMinus2, color: 'text-teal-600', bg: 'bg-teal-50', visible: moduleConfig.tabRecords },
-                { id: 'pets', label: '寵物養成', icon: Icons.PawPrint, color: 'text-rose-600', bg: 'bg-rose-50', visible: moduleConfig.tabPets },
-                { id: 'groups', label: '分組工具', icon: Icons.Shuffle, color: 'text-cyan-600', bg: 'bg-cyan-50', visible: moduleConfig.tabGroups },
-                { id: 'board', label: '互動黑板', icon: Icons.Edit, color: 'text-green-600', bg: 'bg-green-50', visible: moduleConfig.tabBoard },
-                { id: 'qr', label: '學生QR', icon: Icons.QrCode, color: 'text-slate-600', bg: 'bg-slate-100', visible: moduleConfig.tabQR },
+                { id: 'dashboard', label: '儀表板', icon: Icons.LayoutDashboard, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: true },
+                { id: 'exam', label: '考試模式', icon: Icons.ClipboardList, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabExam },
+                { id: 'seats', label: '座位表', icon: Icons.Grid, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabSeats },
+                { id: 'score', label: '積分榜', icon: Icons.Trophy, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabScore },
+                { id: 'redeem', label: '福利社', icon: Icons.Gift, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabRedeem },
+                { id: 'records', label: '行為紀錄', icon: Icons.FileMinus2, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabRecords },
+                { id: 'pets', label: '寵物養成', icon: Icons.PawPrint, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabPets },
+                { id: 'groups', label: '分組工具', icon: Icons.Shuffle, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabGroups },
+                { id: 'board', label: '互動黑板', icon: Icons.Edit, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabBoard },
+                { id: 'qr', label: '學生QR', icon: Icons.QrCode, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabQR },
             ].filter(tab => tab.visible !== false);
 
             return (
-                <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col pb-24">
+                <div className="min-h-screen text-slate-800 flex flex-col pb-24">
                     {/* Header */}
-                    <header className="bg-white/90 backdrop-blur-md shadow-sm p-3 sticky top-0 z-30 border-b border-blue-100 flex justify-between items-center">
+                    <header className="rpg-header p-3 sticky top-0 z-30 flex justify-between items-center">
                         <div className="flex items-center gap-3">
-                            <div className="bg-blue-600 text-white p-2 rounded-xl shadow-md">
+                            <div className="rpg-school-icon p-2 rounded-xl shadow-md">
                                 <Icon component={Icons.School} size={24} />
                             </div>
-                            <input type="text" value={classNameTitle} onChange={(e) => setClassNameTitle(e.target.value)} className="bg-transparent font-bold text-xl text-slate-700 w-32 focus:outline-none focus:border-b-2 border-blue-500" />
+                            <input type="text" value={classNameTitle} onChange={(e) => setClassNameTitle(e.target.value)} className="rpg-title-input bg-transparent font-black text-xl w-36 focus:outline-none" />
                         </div>
                         <div className="flex items-center gap-2">
                              <div className="hidden md:flex flex-col items-end mr-2">
-                                <span className="text-xs text-slate-400 font-bold">Today</span>
-                                <span className="text-lg font-mono font-bold text-blue-600 leading-none">{currentTime.toLocaleTimeString('zh-TW', {hour12:false, hour:'2-digit', minute:'2-digit'})}</span>
+                                <span className="rpg-clock-label text-xs font-bold">Today</span>
+                                <span className="rpg-clock text-lg font-mono font-bold leading-none">{currentTime.toLocaleTimeString('zh-TW', {hour12:false, hour:'2-digit', minute:'2-digit'})}</span>
                             </div>
-                            {/* 雲端同步按鈕 */}
-                            <button onClick={() => setShowCloudModal(true)} className={`border px-3 py-2 rounded-xl shadow-sm transition-colors flex items-center gap-2 font-bold text-sm ${cloudUser ? 'bg-sky-50 border-sky-200 text-sky-600 hover:bg-sky-100' : 'bg-white border-slate-200 text-slate-600 hover:text-sky-600 hover:bg-sky-50'}`} title="雲端同步">
+                            <button onClick={() => setShowCloudModal(true)} className="rpg-icon-btn border px-3 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="雲端同步">
                                 {cloudUser && cloudUser.photoURL ? <img src={cloudUser.photoURL} alt="" className="w-5 h-5 rounded-full" /> : <Icon component={Icons.Cloud} size={18} />}
                                 <span className="hidden sm:inline">{cloudUser ? '已連雲端' : '雲端'}</span>
                             </button>
-                            {/* 新版設定按鈕 */}
-                            <button onClick={() => setShowSettingsModal(true)} className="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-xl shadow-sm hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2 font-bold text-sm" title="模組設定">
+                            <button onClick={() => setShowSettingsModal(true)} className="rpg-icon-btn border px-3 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="模組設定">
                                 <Icon component={Icons.Settings} size={18} />
                                 <span className="hidden sm:inline">模組設定</span>
                             </button>
-                            <button onClick={() => setShowAIModal(true)} className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white p-2 rounded-xl shadow-lg hover:scale-105 transition-transform"><Icon component={Icons.Sparkles} size={20} /></button>
+                            <button onClick={() => setShowAIModal(true)} className="rpg-ai-btn text-white p-2 rounded-xl shadow-lg hover:scale-105 transition-transform"><Icon component={Icons.Sparkles} size={20} /></button>
                         </div>
                     </header>
 
@@ -1139,7 +1287,7 @@
                         className={`fixed z-30 flex flex-col gap-2 transition-all duration-75 ${volPos ? '' : 'right-0 md:right-4 top-24'}`}
                         style={volPos ? { left: volPos.left, top: volPos.top } : {}}
                     >
-                        <div className={`bg-white/90 backdrop-blur-md border-2 ${currentVolConfig.borderColor} shadow-xl rounded-2xl p-3 flex flex-col items-center gap-3 w-16 md:w-20 transition-all relative group`}>
+                        <div className={`rpg-vol-widget border-2 ${currentVolConfig.borderColor} shadow-xl rounded-2xl p-3 flex flex-col items-center gap-3 w-16 md:w-20 transition-all relative group`}>
                             <div onMouseDown={handleVolMouseDown} className="absolute -top-3 -left-3 bg-white border border-slate-200 rounded-full p-1.5 shadow-md cursor-grab active:cursor-grabbing text-slate-400 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" title="拖曳移動">
                                 <Icon component={Icons.Move} size={14} />
                             </div>
@@ -1904,8 +2052,9 @@
                             <div className="animate-slide-up space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><Icon component={Icons.PawPrint} className="text-rose-500" /> 班級寵物樂園</h2>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <button onClick={() => setShowPetDex(true)} className="flex items-center gap-1 text-sm bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-lg hover:bg-rose-200 font-bold shadow-sm"><Icon component={Icons.BookOpen} size={16}/> 寵物圖鑑</button>
+                                        <button onClick={clearAllPets} className="flex items-center gap-1 text-sm bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 font-bold shadow-sm transition-colors"><Icon component={Icons.RotateCcw} size={16}/> 清除所有寵物</button>
                                         <div className="hidden sm:block text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-full">點寵物看進化鏈，積分越高進化越強！</div>
                                     </div>
                                 </div>
@@ -2231,12 +2380,12 @@
 
                     {}
                     {/* Bottom Navigation */}
-                    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-center gap-2 z-50 safe-area-bottom shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                    <nav className="rpg-nav fixed bottom-0 left-0 right-0 px-6 py-3 flex justify-center gap-2 z-50 safe-area-bottom">
                         {availableTabs.map(tab => (
-                            <button 
-                                key={tab.id} 
+                            <button
+                                key={tab.id}
                                 onClick={() => setCurrentTab(tab.id)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-all duration-300 ${currentTab === tab.id ? `${tab.bg} ${tab.color} flex-grow max-w-[140px] justify-center shadow-inner` : 'text-slate-400 hover:bg-slate-50 w-12 justify-center'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-all duration-300 ${currentTab === tab.id ? `${tab.bg} ${tab.color} flex-grow max-w-[140px] justify-center border border-[#C9A227]/50` : 'text-[#6A5020] hover:text-[#C9A227] w-12 justify-center'}`}
                             >
                                 <Icon component={tab.icon} size={24} strokeWidth={currentTab === tab.id ? 2.5 : 2} />
                                 {currentTab === tab.id && <span className="text-sm whitespace-nowrap animate-pop">{tab.label}</span>}

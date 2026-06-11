@@ -194,6 +194,7 @@ const PORTAL_DOC = db.collection('portal').doc('class502');
 let currentStudent = null;
 let unsubscribe = null;
 let suppressRender = false;
+let hasRendered = false;
 
 auth.signInAnonymously()
   .then(() => listenPortal())
@@ -232,12 +233,14 @@ function cornersHTML() {
 function renderPage(s) {
   const app = document.getElementById('app');
   const lineId = s.petLineId || 0;
+  const animClass = hasRendered ? '' : 'animate-pop';
+  hasRendered = true;
 
   if (lineId === 0) {
     const canDraw = s.score >= 5;
     app.innerHTML = `
       ${headerHTML(s)}
-      <div class="card-back-face p-6 animate-pop">
+      <div class="card-back-face p-6 ${animClass}">
         ${cornersHTML()}
         <div class="flex flex-col items-center py-4">
           <div class="w-24 h-24 rounded-full border-2 border-[#C9A227] bg-[#1C1206] flex items-center justify-center mb-4 animate-floaty" style="box-shadow:0 0 24px rgba(232,200,74,.35)">
@@ -262,7 +265,7 @@ function renderPage(s) {
     const src = imgSrc(leg.id, 0, true);
     app.innerHTML = `
       ${headerHTML(s)}
-      <div class="card-frame legendary p-5 animate-pop">
+      <div class="card-frame legendary p-5 ${animClass}">
         ${cornersHTML()}
         <div class="flex justify-center -mt-9 mb-3">
           <div class="ribbon rounded-full px-5 py-1 text-sm font-black tracking-[0.25em]">★ 傳說 · ${leg.type} ★</div>
@@ -294,9 +297,43 @@ function renderPage(s) {
       ? `再得 ${nextThreshold - s.score} 分，升格傳說型態！`
       : `再得 ${nextThreshold - s.score} 分，進化成「${fam.names[stage + 1]}」`;
 
+  const evolutionSection = s.isFree === false
+    ? `<div class="flex items-center justify-center gap-1.5 mb-4">
+        ${fam.names.map((n, i) => `
+          ${i > 0 ? '<span class="text-[#B08A1E] text-xs font-black">➤</span>' : ''}
+          <div class="flex flex-col items-center">
+            <div class="w-12 h-12 rounded-lg flex items-center justify-center bg-[#E8D5A8] border border-[#C9B070] opacity-35">
+              <img src="${imgSrc(fam.id, i, false)}" alt="${n}" class="w-10 h-10 object-contain grayscale" onerror="this.style.display='none'">
+            </div>
+            <span class="text-[10px] font-bold text-[#A08A50] mt-1">${n}</span>
+          </div>`).join('')}
+       </div>
+       <div class="rounded-xl border-2 border-[#5C430C] bg-[#3A2808] py-3 px-3 text-center font-black text-[#D4A010]">
+         🔒 成為自由之身才能進化
+       </div>`
+    : `<div class="mb-1 flex justify-between text-[11px] font-black text-[#8A6A14]">
+        <span>進化之路</span><span>${progress}%</span>
+       </div>
+       <div class="progress-track w-full rounded-full h-3 mb-4 overflow-hidden">
+         <div class="progress-fill h-full rounded-full" style="width:${progress}%"></div>
+       </div>
+       <div class="flex items-center justify-center gap-1.5 mb-4">
+        ${fam.names.map((n, i) => `
+          ${i > 0 ? '<span class="text-[#B08A1E] text-xs font-black">➤</span>' : ''}
+          <div class="flex flex-col items-center">
+            <div class="w-12 h-12 rounded-lg flex items-center justify-center ${i === stage ? 'bg-[#FFF7E0] border-2 border-[#C9A227]' : 'bg-[#E8D5A8] border border-[#C9B070] opacity-45'}" ${i === stage ? 'style="box-shadow:0 0 10px rgba(201,162,39,.5)"' : ''}>
+              <img src="${imgSrc(fam.id, i, false)}" alt="${n}" class="w-10 h-10 object-contain ${i > stage ? 'grayscale' : ''}" onerror="this.style.display='none'">
+            </div>
+            <span class="text-[10px] font-bold ${i === stage ? 'text-[#5C430C]' : 'text-[#A08A50]'} mt-1">${n}</span>
+          </div>`).join('')}
+       </div>
+       <div class="rounded-xl border border-[#C9A227] bg-[#FFF7E0] py-2.5 px-3 text-center text-sm font-black text-[#8A6A14]">
+         ${nextMsg}
+       </div>`;
+
   app.innerHTML = `
     ${headerHTML(s)}
-    <div class="card-frame p-5 animate-pop">
+    <div class="card-frame p-5 ${animClass}">
       ${cornersHTML()}
       <div class="flex justify-center -mt-9 mb-3">
         <div class="ribbon rounded-full px-5 py-1 text-sm font-black tracking-[0.25em]">★ ${fam.type} 系 ★</div>
@@ -309,25 +346,7 @@ function renderPage(s) {
       <div class="text-center mb-4">
         <span class="inline-block text-[11px] font-black px-3 py-0.5 rounded-full bg-[#5C430C] text-[#F0D060] tracking-widest">${['幼年體','中階體','最終體'][stage]}</span>
       </div>
-      <div class="mb-1 flex justify-between text-[11px] font-black text-[#8A6A14]">
-        <span>進化之路</span><span>${progress}%</span>
-      </div>
-      <div class="progress-track w-full rounded-full h-3 mb-4 overflow-hidden">
-        <div class="progress-fill h-full rounded-full" style="width:${progress}%"></div>
-      </div>
-      <div class="flex items-center justify-center gap-1.5 mb-4">
-        ${fam.names.map((n, i) => `
-          ${i > 0 ? '<span class="text-[#B08A1E] text-xs font-black">➤</span>' : ''}
-          <div class="flex flex-col items-center">
-            <div class="w-12 h-12 rounded-lg flex items-center justify-center ${i === stage ? 'bg-[#FFF7E0] border-2 border-[#C9A227]' : 'bg-[#E8D5A8] border border-[#C9B070] opacity-45'}" ${i === stage ? 'style="box-shadow:0 0 10px rgba(201,162,39,.5)"' : ''}>
-              <img src="${imgSrc(fam.id, i, false)}" alt="${n}" class="w-10 h-10 object-contain ${i > stage ? 'grayscale' : ''}" onerror="this.style.display='none'">
-            </div>
-            <span class="text-[10px] font-bold ${i === stage ? 'text-[#5C430C]' : 'text-[#A08A50]'} mt-1">${n}</span>
-          </div>`).join('')}
-      </div>
-      <div class="rounded-xl border border-[#C9A227] bg-[#FFF7E0] py-2.5 px-3 text-center text-sm font-black text-[#8A6A14]">
-        ${nextMsg}
-      </div>
+      ${evolutionSection}
     </div>`;
 }
 
@@ -397,6 +416,7 @@ function showGacha(lineId) {
   setTimeout(() => card.classList.add('flipped'), 1150);
   setTimeout(() => {
     suppressRender = false;
+    hasRendered = false;
     if (currentStudent) renderPage(currentStudent);
   }, 5000);
 }
