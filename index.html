@@ -46,153 +46,138 @@
         .cursor-grab { cursor: grab; }
         .cursor-grabbing { cursor: grabbing; }
 
-        /* ===== ADVENTURE GUILD MASTER THEME ===== */
+        /* ===== CLEAN SKY THEME ===== */
         body {
-            background: radial-gradient(ellipse at 50% 0%, #3D2B12 0%, #1C1208 55%, #0E0806 100%);
-            background-attachment: fixed;
+            background: #EFF6FF;
             font-family: 'Noto Sans TC', 'Segoe UI', sans-serif;
             min-height: 100vh;
-            color: #2B1D0E;
+            color: #1E3A5F;
         }
 
         /* Header */
         .rpg-header {
-            background: rgba(14,8,3,.97) !important;
-            border-bottom: 2px solid #C9A227 !important;
-            box-shadow: 0 2px 20px rgba(0,0,0,.65) !important;
+            background: rgba(255,255,255,.97) !important;
+            border-bottom: 1.5px solid #BFDBFE !important;
+            box-shadow: 0 1px 12px rgba(37,99,235,.1) !important;
         }
-        .rpg-header .rpg-title-input {
-            color: #E8C84A !important;
-            text-shadow: 0 0 12px rgba(232,200,74,.4);
-        }
-        .rpg-header .rpg-clock { color: #E8C84A !important; }
-        .rpg-header .rpg-clock-label { color: #8A6A30 !important; }
+        .rpg-header .rpg-title-input { color: #1D4ED8 !important; }
+        .rpg-header .rpg-clock { color: #2563EB !important; }
+        .rpg-header .rpg-clock-label { color: #93C5FD !important; }
         .rpg-header .rpg-icon-btn {
-            background: rgba(201,162,39,.14) !important;
-            border-color: #5C430C !important;
-            color: #C9A227 !important;
+            background: #EFF6FF !important;
+            border-color: #BFDBFE !important;
+            color: #2563EB !important;
         }
-        .rpg-header .rpg-icon-btn:hover {
-            background: rgba(201,162,39,.28) !important;
-        }
+        .rpg-header .rpg-icon-btn:hover { background: #DBEAFE !important; }
         .rpg-header .rpg-school-icon {
-            background: linear-gradient(180deg, #E8C84A, #C9A227) !important;
-            color: #2B1D0E !important;
+            background: #2563EB !important;
+            color: #fff !important;
         }
         .rpg-header .rpg-ai-btn {
-            background: linear-gradient(135deg, #8A6A14, #C9A227, #E8C84A) !important;
+            background: linear-gradient(135deg, #6366F1, #8B5CF6) !important;
         }
 
         /* Bottom nav */
         .rpg-nav {
-            background: rgba(14,8,3,.97) !important;
-            border-top: 2px solid #C9A227 !important;
-            box-shadow: 0 -4px 20px rgba(0,0,0,.55) !important;
+            background: rgba(255,255,255,.97) !important;
+            border-top: 1.5px solid #BFDBFE !important;
+            box-shadow: 0 -2px 12px rgba(37,99,235,.08) !important;
         }
 
         /* ===== Cards / Panels ===== */
         main .rounded-3xl {
-            background: linear-gradient(165deg, #F8ECD0 0%, #EDD98A 100%) !important;
-            border: 2px solid #C9A227 !important;
-            box-shadow: 0 0 0 2px #4A3318, 0 10px 32px rgba(0,0,0,.52), inset 0 0 22px rgba(180,140,50,.1) !important;
-            color: #2B1D0E;
+            background: #fff !important;
+            border: 1.5px solid #DBEAFE !important;
+            box-shadow: 0 2px 16px rgba(37,99,235,.07), 0 1px 3px rgba(0,0,0,.04) !important;
+            color: #1E3A5F;
         }
-        /* Card interior nested bg */
-        main .rounded-3xl .bg-white { background: #FFF7E0 !important; }
-        main .rounded-3xl .bg-slate-50 { background: rgba(248,236,208,.8) !important; }
-        main .rounded-3xl .bg-slate-100 { background: rgba(225,190,90,.25) !important; }
-        main .rounded-3xl .bg-slate-200 { background: rgba(225,190,90,.45) !important; }
-        main .rounded-3xl .border-slate-200 { border-color: #C9A870 !important; }
-        main .rounded-3xl .border-slate-100 { border-color: rgba(201,168,80,.35) !important; }
-        main .rounded-3xl .divide-y > * { border-color: rgba(201,168,80,.35) !important; }
-        main .rounded-3xl .divide-x > * { border-color: rgba(201,168,80,.35) !important; }
+        main .rounded-3xl .bg-white { background: #fff !important; }
+        main .rounded-3xl .bg-slate-50 { background: #F8FAFF !important; }
+        main .rounded-3xl .bg-slate-100 { background: #EFF6FF !important; }
+        main .rounded-3xl .bg-slate-200 { background: #DBEAFE !important; }
+        main .rounded-3xl .border-slate-200 { border-color: #BFDBFE !important; }
+        main .rounded-3xl .border-slate-100 { border-color: #DBEAFE !important; }
+        main .rounded-3xl .divide-y > * { border-color: #DBEAFE !important; }
+        main .rounded-3xl .divide-x > * { border-color: #DBEAFE !important; }
 
-        /* Card section headers (indigo/blue/slate tinted bars) */
-        main .rounded-3xl .bg-indigo-50 { background: rgba(139,106,20,.22) !important; }
-        main .rounded-3xl .border-indigo-100 { border-color: #C9A227 !important; }
-        main .rounded-3xl .bg-indigo-100 { background: rgba(201,162,39,.3) !important; }
-        main .rounded-3xl .bg-slate-100:first-child { background: rgba(139,106,20,.18) !important; }
+        /* Card section headers */
+        main .rounded-3xl .bg-indigo-50 { background: #EFF6FF !important; }
+        main .rounded-3xl .border-indigo-100 { border-color: #BFDBFE !important; }
+        main .rounded-3xl .bg-indigo-100 { background: #DBEAFE !important; }
+        main .rounded-3xl .bg-slate-100:first-child { background: #EFF6FF !important; }
         main .rounded-3xl > div.p-4:first-child,
-        main .rounded-3xl > div.p-3:first-child { border-bottom-color: #C9A227 !important; }
+        main .rounded-3xl > div.p-3:first-child { border-bottom-color: #BFDBFE !important; }
 
         /* Text overrides inside cards */
-        main .rounded-3xl .text-slate-800 { color: #2B1D0E !important; }
-        main .rounded-3xl .text-slate-700 { color: #3A2808 !important; }
-        main .rounded-3xl .text-slate-600 { color: #5C430C !important; }
-        main .rounded-3xl .text-slate-500 { color: #7A5A20 !important; }
-        main .rounded-3xl .text-slate-400 { color: #9A7A40 !important; }
-        main .rounded-3xl .text-slate-300 { color: #B09A60 !important; }
-        main .rounded-3xl .text-indigo-800 { color: #2B1D0E !important; }
-        main .rounded-3xl .text-indigo-600 { color: #7A5A14 !important; }
-        main .rounded-3xl .text-indigo-600.font-bold { color: #7A5A14 !important; }
-        main .rounded-3xl .text-blue-600 { color: #8A6A14 !important; }
-        main .rounded-3xl .text-blue-500 { color: #9A7A20 !important; }
-        main .rounded-3xl input { color: #2B1D0E !important; }
-        main .rounded-3xl input::placeholder { color: #9A7A40 !important; }
-        main .rounded-3xl select { color: #2B1D0E !important; background: #FFF7E0 !important; border-color: #C9A227 !important; }
-        main .rounded-3xl textarea { color: #2B1D0E !important; background: #FFF7E0 !important; }
+        main .rounded-3xl .text-slate-800 { color: #1E3A5F !important; }
+        main .rounded-3xl .text-slate-700 { color: #1E40AF !important; }
+        main .rounded-3xl .text-slate-600 { color: #3B82F6 !important; }
+        main .rounded-3xl .text-slate-500 { color: #60A5FA !important; }
+        main .rounded-3xl .text-slate-400 { color: #93C5FD !important; }
+        main .rounded-3xl .text-slate-300 { color: #BAE6FD !important; }
+        main .rounded-3xl .text-indigo-800 { color: #1E3A5F !important; }
+        main .rounded-3xl .text-indigo-600 { color: #2563EB !important; }
+        main .rounded-3xl .text-indigo-600.font-bold { color: #2563EB !important; }
+        main .rounded-3xl .text-blue-600 { color: #1D4ED8 !important; }
+        main .rounded-3xl .text-blue-500 { color: #3B82F6 !important; }
+        main .rounded-3xl input { color: #1E3A5F !important; }
+        main .rounded-3xl input::placeholder { color: #93C5FD !important; }
+        main .rounded-3xl select { color: #1E3A5F !important; background: #fff !important; border-color: #BFDBFE !important; }
+        main .rounded-3xl textarea { color: #1E3A5F !important; background: #F8FAFF !important; }
 
         /* Timer */
-        main .rounded-3xl .font-mono { color: #3A2808 !important; }
+        main .rounded-3xl .font-mono { color: #1E3A5F !important; }
         main .rounded-3xl .text-blue-600.font-mono,
-        main .rounded-3xl .text-blue-600.font-black { color: #7A5A14 !important; }
-        main .rounded-3xl .text-red-600 { color: #c0392b !important; }
-        main .rounded-3xl .bg-red-50 { background: #FFF0D0 !important; }
-        main .rounded-3xl .border-red-400 { border-color: #e74c3c !important; }
+        main .rounded-3xl .text-blue-600.font-black { color: #2563EB !important; }
+        main .rounded-3xl .text-red-600 { color: #DC2626 !important; }
+        main .rounded-3xl .bg-red-50 { background: #FEF2F2 !important; }
+        main .rounded-3xl .border-red-400 { border-color: #FCA5A5 !important; }
 
         /* Quick tool bar */
-        main .bg-emerald-100 { background: rgba(34,197,94,.18) !important; }
-        main .text-emerald-700 { color: #16a34a !important; }
-        main .bg-indigo-100 { background: rgba(99,102,241,.18) !important; }
-        main .text-indigo-700 { color: #6366f1 !important; }
+        main .bg-emerald-100 { background: #DCFCE7 !important; }
+        main .text-emerald-700 { color: #15803D !important; }
+        main .bg-indigo-100 { background: #E0E7FF !important; }
+        main .text-indigo-700 { color: #4338CA !important; }
 
-        /* Free students card (emerald) */
-        main .rounded-3xl.border-emerald-200 { border-color: #22c55e !important; }
-        main .rounded-3xl .bg-emerald-50 { background: rgba(34,197,94,.12) !important; }
-        main .rounded-3xl .border-emerald-100 { border-color: rgba(34,197,94,.3) !important; }
-        main .rounded-3xl .text-emerald-800 { color: #166534 !important; }
+        /* Free students card */
+        main .rounded-3xl.border-emerald-200 { border-color: #A7F3D0 !important; }
+        main .rounded-3xl .bg-emerald-50 { background: #ECFDF5 !important; }
+        main .rounded-3xl .border-emerald-100 { border-color: #A7F3D0 !important; }
+        main .rounded-3xl .text-emerald-800 { color: #065F46 !important; }
 
         /* Page headings */
         main h2.font-bold,
         main .text-2xl.font-bold {
-            color: #E8C84A !important;
-            text-shadow: 0 1px 5px rgba(0,0,0,.45);
+            color: #1D4ED8 !important;
+            text-shadow: none;
         }
 
         /* Volume widget */
         .rpg-vol-widget {
-            background: rgba(14,8,3,.94) !important;
-            border-color: inherit;
-            box-shadow: 0 4px 20px rgba(0,0,0,.55) !important;
+            background: rgba(255,255,255,.97) !important;
+            box-shadow: 0 4px 20px rgba(37,99,235,.12) !important;
         }
-        .rpg-vol-widget .text-slate-400 { color: #7A6030 !important; }
+        .rpg-vol-widget .text-slate-400 { color: #93C5FD !important; }
 
         /* Rounded-2xl inner cards */
-        main .rounded-2xl.border-dashed { border-color: #C9A870 !important; background: rgba(248,236,208,.35) !important; }
+        main .rounded-2xl.border-dashed { border-color: #BFDBFE !important; background: #F8FAFF !important; }
 
-        /* Homework active timer highlight */
-        .schedule-row:hover td { background-color: rgba(201,162,39,.12) !important; }
-        .schedule-active td { background-color: rgba(232,200,74,.18) !important; border-top: 2px solid #C9A227 !important; border-bottom: 2px solid #C9A227 !important; }
-        .schedule-active td:first-child { border-left: 2px solid #C9A227 !important; }
-        .schedule-active td:last-child { border-right: 2px solid #C9A227 !important; }
+        /* Homework schedule highlight */
+        .schedule-row:hover td { background-color: #EFF6FF !important; }
+        .schedule-active td { background-color: #DBEAFE !important; border-top: 2px solid #3B82F6 !important; border-bottom: 2px solid #3B82F6 !important; }
+        .schedule-active td:first-child { border-left: 2px solid #3B82F6 !important; }
+        .schedule-active td:last-child { border-right: 2px solid #3B82F6 !important; }
 
         .bg-grid-pattern {
             background-size: 40px 40px;
-            background-image: radial-gradient(circle, rgba(201,162,39,.2) 1px, transparent 1px);
-        }
-
-        /* Modals */
-        .rpg-modal-card {
-            background: linear-gradient(165deg, #F8ECD0, #EDD98A) !important;
-            border: 2px solid #C9A227 !important;
-            box-shadow: 0 0 0 2px #4A3318, 0 24px 60px rgba(0,0,0,.7) !important;
+            background-image: radial-gradient(circle, #BFDBFE 1px, transparent 1px);
         }
 
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(201,162,39,.1); }
-        ::-webkit-scrollbar-thumb { background: #8A6A14; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #C9A227; }
+        ::-webkit-scrollbar-track { background: #EFF6FF; }
+        ::-webkit-scrollbar-thumb { background: #93C5FD; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
     </style>
 </head>
 <body>
@@ -1242,16 +1227,16 @@
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
-                { id: 'dashboard', label: '儀表板', icon: Icons.LayoutDashboard, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: true },
-                { id: 'exam', label: '考試模式', icon: Icons.ClipboardList, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabExam },
-                { id: 'seats', label: '座位表', icon: Icons.Grid, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabSeats },
-                { id: 'score', label: '積分榜', icon: Icons.Trophy, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabScore },
-                { id: 'redeem', label: '福利社', icon: Icons.Gift, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabRedeem },
-                { id: 'records', label: '行為紀錄', icon: Icons.FileMinus2, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabRecords },
-                { id: 'pets', label: '寵物養成', icon: Icons.PawPrint, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabPets },
-                { id: 'groups', label: '分組工具', icon: Icons.Shuffle, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabGroups },
-                { id: 'board', label: '互動黑板', icon: Icons.Edit, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabBoard },
-                { id: 'qr', label: '學生QR', icon: Icons.QrCode, color: 'text-[#E8C84A]', bg: 'bg-[#C9A227]/20', visible: moduleConfig.tabQR },
+                { id: 'dashboard', label: '儀表板', icon: Icons.LayoutDashboard, color: 'text-blue-600', bg: 'bg-blue-50', visible: true },
+                { id: 'exam', label: '考試模式', icon: Icons.ClipboardList, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabExam },
+                { id: 'seats', label: '座位表', icon: Icons.Grid, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabSeats },
+                { id: 'score', label: '積分榜', icon: Icons.Trophy, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabScore },
+                { id: 'redeem', label: '福利社', icon: Icons.Gift, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabRedeem },
+                { id: 'records', label: '行為紀錄', icon: Icons.FileMinus2, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabRecords },
+                { id: 'pets', label: '寵物養成', icon: Icons.PawPrint, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabPets },
+                { id: 'groups', label: '分組工具', icon: Icons.Shuffle, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabGroups },
+                { id: 'board', label: '互動黑板', icon: Icons.Edit, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabBoard },
+                { id: 'qr', label: '學生QR', icon: Icons.QrCode, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabQR },
             ].filter(tab => tab.visible !== false);
 
             return (
@@ -2385,7 +2370,7 @@
                             <button
                                 key={tab.id}
                                 onClick={() => setCurrentTab(tab.id)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-all duration-300 ${currentTab === tab.id ? `${tab.bg} ${tab.color} flex-grow max-w-[140px] justify-center border border-[#C9A227]/50` : 'text-[#6A5020] hover:text-[#C9A227] w-12 justify-center'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition-all duration-300 ${currentTab === tab.id ? `${tab.bg} ${tab.color} flex-grow max-w-[140px] justify-center border border-blue-200` : 'text-slate-400 hover:text-blue-500 hover:bg-blue-50 w-12 justify-center'}`}
                             >
                                 <Icon component={tab.icon} size={24} strokeWidth={currentTab === tab.id ? 2.5 : 2} />
                                 {currentTab === tab.id && <span className="text-sm whitespace-nowrap animate-pop">{tab.label}</span>}
