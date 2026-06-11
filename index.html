@@ -1219,6 +1219,12 @@
                             updatedAt: new Date().toISOString()
                         }, { merge: true });
                     }
+                    await cloudDbRef.current.collection('portal').doc('class502_ext').set({
+                        homeworksJson:   localStorage.getItem('class502_homeworks_v10') || '[]',
+                        debtsJson:       localStorage.getItem('class502_outstanding_hw_v2') || '[]',
+                        reflectionsJson: localStorage.getItem('class502_self_reflections_v1') || '[]',
+                        updatedAt:       new Date().toISOString()
+                    });
                     setCloudStatus(`☁️ 已於 ${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} 上傳到雲端。`);
                 } catch (e) { setCloudStatus(`❌ 上傳失敗：${e.message}`); } finally { if (!silent) setCloudBusy(false); }
             };
