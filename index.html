@@ -1212,7 +1212,7 @@
                         await cloudDbRef.current.collection('portal').doc('class502').set({
                             students: curStudents.map(s => ({ id: s.id, name: s.name, score: s.score, petLineId: curAssign[s.id] || 0, isFree: freeIds.has(s.id) })),
                             updatedAt: new Date().toISOString()
-                        });
+                        }, { merge: true });
                     }
                     setCloudStatus(`☁️ 已於 ${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} 上傳到雲端。`);
                 } catch (e) { setCloudStatus(`❌ 上傳失敗：${e.message}`); } finally { if (!silent) setCloudBusy(false); }
