@@ -755,22 +755,30 @@
                 setIsLoaded(true);
                 audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-                // 若本機無作業資料，自動從 portal 同步
-                if (!savedHws.some(h => h.title)) {
-                    (async () => {
-                        try {
-                            const tk = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyDtgJnhqUIOPPcWoZfADmqUcBHVWiIEFkU', {
-                                method: 'POST', headers: {'Content-Type':'application/json'}, body: '{"returnSecureToken":true}'
-                            }).then(r => r.json()).then(d => d.idToken);
-                            const f = await fetch('https://firestore.googleapis.com/v1/projects/zheteacher/databases/(default)/documents/portal/class502', {
-                                headers: { Authorization: `Bearer ${tk}` }
-                            }).then(r => r.json()).then(d => d.fields || {});
-                            if (f.homeworksJson?.stringValue) { const v = JSON.parse(f.homeworksJson.stringValue); localStorage.setItem('class502_homeworks_v10', f.homeworksJson.stringValue); setHomeworks(v); }
-                            if (f.debtsJson?.stringValue) { const v = JSON.parse(f.debtsJson.stringValue); localStorage.setItem('class502_outstanding_hw_v2', f.debtsJson.stringValue); setOutstandingHomeworks(v); }
-                            if (f.reflectionsJson?.stringValue) { const v = JSON.parse(f.reflectionsJson.stringValue); localStorage.setItem('class502_self_reflections_v1', f.reflectionsJson.stringValue); setSelfReflections(v); }
-                        } catch(e) {}
-                    })();
-                }
+                // 自動從 portal 同步（依 updatedAt 比較，有更新才覆蓋全部）
+                (async () => {
+                    try {
+                        const tk = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyDtgJnhqUIOPPcWoZfADmqUcBHVWiIEFkU', {
+                            method: 'POST', headers: {'Content-Type':'application/json'}, body: '{"returnSecureToken":true}'
+                        }).then(r => r.json()).then(d => d.idToken);
+                        if (!tk) return;
+                        const f = await fetch('https://firestore.googleapis.com/v1/projects/zheteacher/databases/(default)/documents/portal/class502', {
+                            headers: { Authorization: `Bearer ${tk}` }
+                        }).then(r => r.json()).then(d => d.fields || {});
+                        const portalTime = new Date(f.updatedAt?.stringValue || 0).getTime();
+                        const lastSync = parseInt(localStorage.getItem('class502_portal_sync_time') || '0');
+                        if (portalTime <= lastSync) return;
+                        if (f.students?.arrayValue?.values) {
+                            const sts = f.students.arrayValue.values.map(v => { const ff = v.mapValue.fields; return { id: parseInt(ff.id.integerValue), name: ff.name.stringValue, score: parseInt(ff.score.integerValue) }; });
+                            localStorage.setItem('class502_student_data_v8', JSON.stringify(sts));
+                            setStudentData(sts);
+                        }
+                        if (f.homeworksJson?.stringValue) { const v = JSON.parse(f.homeworksJson.stringValue); localStorage.setItem('class502_homeworks_v10', f.homeworksJson.stringValue); setHomeworks(v); }
+                        if (f.debtsJson?.stringValue) { const v = JSON.parse(f.debtsJson.stringValue); localStorage.setItem('class502_outstanding_hw_v2', f.debtsJson.stringValue); setOutstandingHomeworks(v); }
+                        if (f.reflectionsJson?.stringValue) { const v = JSON.parse(f.reflectionsJson.stringValue); localStorage.setItem('class502_self_reflections_v1', f.reflectionsJson.stringValue); setSelfReflections(v); }
+                        localStorage.setItem('class502_portal_sync_time', String(portalTime));
+                    } catch(e) {}
+                })();
             }, []);
 
             // 當分頁模組被關閉時，自動跳轉回儀表板保護機制
