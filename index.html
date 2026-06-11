@@ -511,6 +511,7 @@
             const [essayImages, setEssayImages] = useState([]);
             const [essayGrading, setEssayGrading] = useState(false);
             const [newTopicName, setNewTopicName] = useState("");
+            const [newTopicNote, setNewTopicNote] = useState("");
 
             // 寵物養成
             const [petNames, setPetNames] = useState({});
@@ -979,10 +980,11 @@
                 const title = newTopicName.trim();
                 if (!title) { alert("請先輸入作文題目名稱。"); return; }
                 if (essayTopics.some(t => t.title === title)) { alert("這個題目已經存在了。"); return; }
-                const topic = { id: 't' + Date.now(), title, createdAt: new Date().toLocaleDateString('zh-TW') };
+                const topic = { id: 't' + Date.now(), title, note: newTopicNote.trim(), createdAt: new Date().toLocaleDateString('zh-TW') };
                 setEssayTopics([...essayTopics, topic]);
                 setCurrentEssayTopicId(topic.id);
                 setNewTopicName("");
+                setNewTopicNote("");
             };
 
             const deleteEssayTopic = (topicId) => {
@@ -1028,13 +1030,14 @@
                 const student = studentData.find(s => s.id === essayStudentId);
                 if (!topic || !student) return;
                 setEssayGrading(true);
-                const prompt = `你是一位富有經驗的台灣小學五年級國語科老師，正在批改學生的作文。批改原則：
+                const prompt = `你是一位富有經驗的臺灣小學五年級國語科老師，正在批改學生的作文。批改原則：
 - 評語誠實直接，優點明確肯定，問題明確指出，不模糊帶過
 - 語氣溫和但不迴避缺點，讓學生清楚知道哪裡需要改進
 - 建議具體可執行，不只說「要加油」而是說「例如可以加入...」
 - 評分客觀，符合五年級作文標準
 - 分數介於 70～100 分之間（70 代表基本達標，100 代表表現傑出）
-- 全程使用繁體中文
+- 全程使用臺灣繁體中文用語（例如：影片、網路、軟體、登入、連結、畫面，不使用中國大陸用語）
+- 優點與待加強各寫 2～3 點，每點 30～50 字；老師的話約 50～70 字，直接對學生說${topic.note ? `\n- 老師特別注意事項（請優先考量）：${topic.note}` : ''}
 
 【評分規準，總分 100 分】
 1. 題旨發揮（25 分）：內容是否緊扣題目，描述是否具體豐富，有無舉出生活實例
@@ -1086,6 +1089,57 @@
             const deleteEssayResult = (resultId) => {
                 if (!confirm('確定刪除這筆批改紀錄？')) return;
                 setEssayResults(essayResults.filter(r => r.id !== resultId));
+            };
+
+            const updateEssayTopicNote = (topicId, note) => {
+                setEssayTopics(essayTopics.map(t => t.id === topicId ? {...t, note} : t));
+            };
+
+            const printEssay = () => {
+                const topic = essayTopics.find(t => t.id === currentEssayTopicId);
+                if (!topic) return;
+                const results = essayResults.filter(r => r.topicId === topic.id);
+                if (!results.length) { alert('目前沒有任何批改紀錄可列印。'); return; }
+                const pages = [];
+                for (let i = 0; i < results.length; i += 3) pages.push(results.slice(i, i + 3));
+                const colHtml = (r) => {
+                    if (!r) return '<div class="col empty"></div>';
+                    const strengths = (r.result.strengths || []).join('；');
+                    const suggestions = (r.result.suggestions || []).join('；');
+                    const message = r.result.message || '';
+                    return `<div class="col">
+                        <div class="col-name print-hide">${r.studentId}號　${r.studentName}</div>
+                        <div class="section"><div class="lbl good">【優點】</div><div class="txt">${strengths}</div></div>
+                        <div class="section"><div class="lbl improve">【待加強】</div><div class="txt">${suggestions}</div></div>
+                        <div class="section"><div class="lbl teacher">【老師的話】</div><div class="txt">${message}</div></div>
+                    </div>`;
+                };
+                const pagesHtml = pages.map(pg => {
+                    const cols = [pg[0]||null, pg[1]||null, pg[2]||null];
+                    return `<div class="page">${cols.map(colHtml).join('')}</div>`;
+                }).join('');
+                const w = window.open('', '_blank');
+                w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>${topic.title} 批改單</title>
+<style>
+@page{size:A4 landscape;margin:10mm}
+@media print{.print-hide{display:none!important}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
+.page{width:100%;height:calc(210mm - 20mm);display:flex;flex-direction:row-reverse;page-break-after:always;overflow:hidden}
+.page:last-child{page-break-after:auto}
+.col{flex:1;writing-mode:vertical-rl;padding:12px 8px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;overflow:hidden;color:#111;font-size:18pt;line-height:2}
+.col:last-child{border-left:none}
+.col.empty{flex:1;border-left:1.5px dashed #aaa}
+.col.empty:last-child{border-left:none}
+.col-name{font-size:14pt;font-weight:bold;letter-spacing:3px;padding-bottom:7px;border-bottom:1px dashed #ccc;margin-bottom:10px;color:#888}
+.section{margin-bottom:14px}
+.lbl{font-size:13pt;font-weight:bold;margin-bottom:3px}
+.lbl.good{color:#1a7a3c}.lbl.improve{color:#b52020}.lbl.teacher{color:#7d6200}
+.txt{font-size:18pt;line-height:2}
+</style></head><body>${pagesHtml}</body></html>`);
+                w.document.close();
+                setTimeout(() => w.print(), 600);
             };
 
             const processBehaviorRecord = async () => {
@@ -2395,8 +2449,9 @@
 
                                 {/* 題目管理 */}
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-3">
-                                    <div className="flex gap-2">
-                                        <input type="text" placeholder="輸入新作文題目，例如：我的爸爸" value={newTopicName} onChange={e => setNewTopicName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addEssayTopic()} className="flex-1 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:border-blue-400 outline-none" />
+                                    <div className="flex gap-2 flex-wrap">
+                                        <input type="text" placeholder="輸入新作文題目，例如：我的爸爸" value={newTopicName} onChange={e => setNewTopicName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addEssayTopic()} className="w-44 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:border-blue-400 outline-none" />
+                                        <input type="text" placeholder="注意事項（給 AI 的批改重點，可留空）" value={newTopicNote} onChange={e => setNewTopicNote(e.target.value)} onKeyDown={e => e.key === 'Enter' && addEssayTopic()} className="flex-1 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:border-amber-400 outline-none text-sm" />
                                         <button onClick={addEssayTopic} className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-sm whitespace-nowrap">＋ 新增題目</button>
                                     </div>
                                     {essayTopics.length > 0 && (
@@ -2417,7 +2472,13 @@
                                 {/* 學生清單 */}
                                 {curTopic && (
                                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-                                        <h3 className="font-bold text-slate-600 mb-3">「{curTopic.title}」批改進度（{topicResults.length}/{studentData.length}）</h3>
+                                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                                            <h3 className="font-bold text-slate-600">「{curTopic.title}」批改進度（{topicResults.length}/{studentData.length}）</h3>
+                                            <input type="text" placeholder="注意事項（給 AI 的批改重點）" value={curTopic.note || ''} onChange={e => updateEssayTopicNote(curTopic.id, e.target.value)} className="flex-1 min-w-0 p-2 border border-amber-200 rounded-xl bg-amber-50 focus:border-amber-400 outline-none text-sm placeholder-amber-300" />
+                                            {topicResults.length > 0 && (
+                                                <button onClick={printEssay} className="px-4 py-2 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-800 shadow-sm text-sm whitespace-nowrap flex items-center gap-1"><Icon component={Icons.Printer} size={15}/> 列印批改單</button>
+                                            )}
+                                        </div>
                                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
                                             {studentData.map(s => {
                                                 const r = topicResults.find(x => x.studentId === s.id);
