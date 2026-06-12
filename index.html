@@ -536,6 +536,9 @@
             const [qrEncodeType, setQrEncodeType] = useState('full');
             // 雲端同步
             const [showCloudModal, setShowCloudModal] = useState(false);
+            const [showDebtMsgModal, setShowDebtMsgModal] = useState(false);
+            const [debtMsgStudentId, setDebtMsgStudentId] = useState(null);
+            const [debtMsgCopied, setDebtMsgCopied] = useState(false);
             const [cloudConfigText, setCloudConfigText] = useState(DEFAULT_FIREBASE_CONFIG);
             const [cloudUser, setCloudUser] = useState(null);
             const [cloudReady, setCloudReady] = useState(false);
@@ -1089,6 +1092,28 @@
             const deleteEssayResult = (resultId) => {
                 if (!confirm('確定刪除這筆批改紀錄？')) return;
                 setEssayResults(essayResults.filter(r => r.id !== resultId));
+            };
+
+            const getDebtSubjectOrder = (title) => {
+                if (/國語|語紀|生字|閱讀|乙本|作文|習作/.test(title)) return 0;
+                if (/數學|數練|數習/.test(title)) return 1;
+                if (/訂算|訂簽|聯考/.test(title)) return 2;
+                if (/聯絡簿/.test(title)) return 3;
+                return 4;
+            };
+
+            const generateDebtMessage = (studentId) => {
+                const student = studentData.find(s => s.id === Number(studentId));
+                if (!student) return '';
+                const debts = outstandingHomeworks.filter(d => d.studentId === Number(studentId) && !d.isCompleted);
+                if (!debts.length) return `親愛的${student.name}家長，您好：\n\n${student.name}同學目前沒有待補作業，表現很棒！`;
+                const sorted = [...debts].sort((a, b) => {
+                    const oa = getDebtSubjectOrder(a.hwTitle), ob = getDebtSubjectOrder(b.hwTitle);
+                    if (oa !== ob) return oa - ob;
+                    return (a.timestamp || 0) - (b.timestamp || 0);
+                });
+                const lines = sorted.map(d => `・${d.hwTitle}`).join('\n');
+                return `親愛的${student.name}家長，您好：\n\n今天會請學生帶回以下未完成的作業，麻煩協助督促，謝謝！\n\n${lines}\n\n共 ${sorted.length} 項待完成。`;
             };
 
             const updateEssayTopicNote = (topicId, note) => {
@@ -1693,8 +1718,9 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
 
                                 {moduleConfig.outstandingDebts && Object.keys(groupedDebts).length > 0 && (
                                     <div className="bg-white rounded-3xl shadow-sm border border-orange-200 overflow-hidden">
-                                        <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center gap-2 text-orange-800 font-bold">
-                                            <Icon component={Icons.ClipboardList} size={20} /> 待補作業清單 (共 {outstandingHomeworks.length} 項)
+                                        <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center justify-between text-orange-800 font-bold">
+                                            <div className="flex items-center gap-2"><Icon component={Icons.ClipboardList} size={20} /> 待補作業清單 (共 {outstandingHomeworks.length} 項)</div>
+                                            <button onClick={() => { setDebtMsgStudentId(Object.keys(groupedDebts).sort((a,b)=>Number(a)-Number(b))[0] || null); setDebtMsgCopied(false); setShowDebtMsgModal(true); }} className="flex items-center gap-1 text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 font-bold shadow-sm whitespace-nowrap"><Icon component={Icons.FileText} size={14}/> 整理清單</button>
                                         </div>
                                         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                                             {Object.keys(groupedDebts).sort((a,b) => Number(a) - Number(b)).map(sId => {
@@ -2906,6 +2932,36 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                     )}
 
                     {/* 雲端同步 Modal */}
+                    {showDebtMsgModal && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowDebtMsgModal(false)}>
+                            <div className="bg-white rounded-3xl w-full max-w-lg flex flex-col overflow-hidden shadow-2xl animate-pop">
+                                <div className="p-4 bg-orange-600 text-white flex justify-between items-center">
+                                    <h3 className="font-bold flex items-center gap-2"><Icon component={Icons.FileText} size={18}/> 整理待補作業清單</h3>
+                                    <button onClick={() => setShowDebtMsgModal(false)} className="hover:text-orange-200"><Icon component={Icons.X}/></button>
+                                </div>
+                                <div className="p-5 space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <label className="text-sm font-bold text-slate-600 whitespace-nowrap">選擇學生</label>
+                                        <select value={debtMsgStudentId || ''} onChange={e => { setDebtMsgStudentId(e.target.value); setDebtMsgCopied(false); }} className="flex-1 p-2 border border-slate-200 rounded-xl bg-slate-50 outline-none font-bold text-slate-700">
+                                            {Object.keys(groupedDebts).sort((a,b)=>Number(a)-Number(b)).map(sid => (
+                                                <option key={sid} value={sid}>{sid}號 {groupedDebts[sid].studentName}（欠 {groupedDebts[sid].debts.length} 項）</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    {debtMsgStudentId && (
+                                        <textarea readOnly value={generateDebtMessage(debtMsgStudentId)} rows={12} className="w-full p-4 border border-slate-200 rounded-2xl bg-slate-50 text-sm text-slate-700 leading-relaxed resize-none font-mono outline-none" />
+                                    )}
+                                    <button onClick={() => {
+                                        const msg = generateDebtMessage(debtMsgStudentId);
+                                        navigator.clipboard.writeText(msg).then(() => { setDebtMsgCopied(true); setTimeout(() => setDebtMsgCopied(false), 2500); });
+                                    }} className={`w-full py-3 rounded-2xl font-bold text-base transition-all shadow-md ${debtMsgCopied ? 'bg-emerald-500 text-white' : 'bg-orange-600 text-white hover:bg-orange-700'}`}>
+                                        {debtMsgCopied ? '✅ 已複製！' : '複製給家長'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {showCloudModal && (
                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
                             <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-pop">
