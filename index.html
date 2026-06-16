@@ -559,6 +559,7 @@
             const audioRef = useRef(null);
             const bellIntervalRef = useRef(null);
             const bellCtxRef = useRef(null);
+            const bellBufferRef = useRef(null);
             const seatingContainerRef = useRef(null);
             const recognitionRef = useRef(null);
 
@@ -1136,59 +1137,26 @@
                 setEssayResults(essayResults.filter(r => r.id !== resultId));
             };
 
-            const ringServiceBell = () => {
+            const ringServiceBell = async () => {
                 try {
                     if (!bellCtxRef.current || bellCtxRef.current.state === 'closed') {
                         bellCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                        bellBufferRef.current = null;
                     }
                     const ctx = bellCtxRef.current;
-                    if (ctx.state === 'suspended') ctx.resume();
-                    const now = ctx.currentTime;
-
-                    const master = ctx.createGain();
-                    master.gain.value = 3.5;
-                    master.connect(ctx.destination);
-
-                    // 金屬叮聲瞬態：帶通濾波讓噪聲有金屬感而非白噪音
-                    const bufSize = Math.floor(ctx.sampleRate * 0.018);
-                    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-                    const data = buf.getChannelData(0);
-                    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 3);
-                    const noise = ctx.createBufferSource();
-                    noise.buffer = buf;
-                    const bpf = ctx.createBiquadFilter();
-                    bpf.type = 'bandpass';
-                    bpf.frequency.value = 3200;
-                    bpf.Q.value = 0.8;
-                    const noiseGain = ctx.createGain();
-                    noiseGain.gain.setValueAtTime(5.0, now);
-                    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
-                    noise.connect(bpf);
-                    bpf.connect(noiseGain);
-                    noiseGain.connect(master);
-                    noise.start(now);
-
-                    // 真實鐵鈴不和諧泛音（非整數倍，像物理真實鐘鈴）
-                    const fund = 620;
-                    const partials = [
-                        { freq: fund,        vol: 2.2, decay: 2.5 },
-                        { freq: fund * 1.58, vol: 1.6, decay: 1.7 },
-                        { freq: fund * 2.43, vol: 1.0, decay: 1.1 },
-                        { freq: fund * 3.55, vol: 0.5, decay: 0.6 },
-                        { freq: fund * 4.82, vol: 0.2, decay: 0.3 },
-                    ];
-                    partials.forEach(({ freq, vol, decay }) => {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.type = 'sine';
-                        osc.frequency.value = freq;
-                        gain.gain.setValueAtTime(vol, now);
-                        gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
-                        osc.connect(gain);
-                        gain.connect(master);
-                        osc.start(now);
-                        osc.stop(now + decay + 0.05);
-                    });
+                    if (ctx.state === 'suspended') await ctx.resume();
+                    if (!bellBufferRef.current) {
+                        const resp = await fetch('./bell.mp3');
+                        const arrayBuf = await resp.arrayBuffer();
+                        bellBufferRef.current = await ctx.decodeAudioData(arrayBuf);
+                    }
+                    const src = ctx.createBufferSource();
+                    src.buffer = bellBufferRef.current;
+                    const gain = ctx.createGain();
+                    gain.gain.value = 3.0;
+                    src.connect(gain);
+                    gain.connect(ctx.destination);
+                    src.start();
                 } catch(e) {}
             };
 
