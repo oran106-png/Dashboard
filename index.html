@@ -16,6 +16,8 @@
     
     <!-- Markdown 解析器 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Word (.docx) 文字抽取 -->
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -227,6 +229,7 @@
             Timer: (p) => <IconBase {...p}><line x1="10" y1="2" x2="14" y2="2" /><line x1="12" y1="14" x2="15" y2="11" /><circle cx="12" cy="14" r="8" /></IconBase>,
             School: (p) => <IconBase {...p}><path d="m4 6 8-4 8 4" /><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2" /><path d="M14 22v-4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v4" /><path d="M18 5v17" /><path d="M6 5v17" /><circle cx="12" cy="9" r="2" /></IconBase>,
             Bell: (p) => <IconBase {...p}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></IconBase>,
+            BellRing: (p) => <IconBase {...p}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /><path d="M2 8c0-2.2.7-4.3 2-6" /><path d="M22 8a10 10 0 0 0-2-6" /></IconBase>,
             BellOff: (p) => <IconBase {...p}><path d="M13.73 21a2 2 0 0 1-3.46 0" /><path d="M18.63 13A17.89 17.89 0 0 1 18 8" /><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" /><path d="M18 8a6 6 0 0 0-9.33-5" /><line x1="1" y1="1" x2="23" y2="23" /></IconBase>,
             BookOpen: (p) => <IconBase {...p}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></IconBase>,
             CheckSquare: (p) => <IconBase {...p}><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></IconBase>,
@@ -539,6 +542,8 @@
             const [showDebtMsgModal, setShowDebtMsgModal] = useState(false);
             const [debtMsgStudentId, setDebtMsgStudentId] = useState(null);
             const [debtMsgCopied, setDebtMsgCopied] = useState(false);
+            const [bellMode, setBellMode] = useState(0);
+            const [essayExtraDocs, setEssayExtraDocs] = useState([]);
             const [cloudConfigText, setCloudConfigText] = useState(DEFAULT_FIREBASE_CONFIG);
             const [cloudUser, setCloudUser] = useState(null);
             const [cloudReady, setCloudReady] = useState(false);
@@ -552,6 +557,7 @@
             const timerRef = useRef(null);
             const examTimerRef = useRef(null);
             const audioRef = useRef(null);
+            const bellIntervalRef = useRef(null);
             const seatingContainerRef = useRef(null);
             const recognitionRef = useRef(null);
 
@@ -1019,16 +1025,44 @@
             const handleEssayImageUpload = async (e) => {
                 const files = Array.from(e.target.files || []);
                 if (!files.length) return;
+                const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                const pdfFiles = files.filter(f => f.type === 'application/pdf');
+                const wordFiles = files.filter(f => f.name.endsWith('.docx') || f.name.endsWith('.doc'));
                 try {
-                    const imgs = await Promise.all(files.map(essayFileToBase64));
-                    setEssayImages(prev => [...prev, ...imgs]);
-                } catch(err) { alert(`❌ 圖片處理失敗：${err.message}`); }
+                    if (imageFiles.length) {
+                        const imgs = await Promise.all(imageFiles.map(essayFileToBase64));
+                        setEssayImages(prev => [...prev, ...imgs]);
+                    }
+                    if (pdfFiles.length) {
+                        const pdfs = await Promise.all(pdfFiles.map(f => new Promise((res, rej) => {
+                            const reader = new FileReader();
+                            reader.onload = () => res({ name: f.name, mimeType: 'application/pdf', content: reader.result.split(',')[1] });
+                            reader.onerror = rej;
+                            reader.readAsDataURL(f);
+                        })));
+                        setEssayExtraDocs(prev => [...prev, ...pdfs]);
+                    }
+                    if (wordFiles.length) {
+                        const words = await Promise.all(wordFiles.map(f => new Promise((res, rej) => {
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                                try {
+                                    const result = await window.mammoth.extractRawText({ arrayBuffer: reader.result });
+                                    res({ name: f.name, mimeType: 'text/plain', content: result.value });
+                                } catch(err) { rej(err); }
+                            };
+                            reader.onerror = rej;
+                            reader.readAsArrayBuffer(f);
+                        })));
+                        setEssayExtraDocs(prev => [...prev, ...words]);
+                    }
+                } catch(err) { alert(`❌ 檔案處理失敗：${err.message}`); }
                 e.target.value = '';
             };
 
             const gradeEssay = async () => {
                 if (!userApiKey) { alert("請先至右上角設定 API Key！"); setShowAIModal(true); return; }
-                if (!essayImages.length) { alert("請先上傳作文照片。"); return; }
+                if (!essayImages.length && !essayExtraDocs.length) { alert("請先上傳作文照片、PDF 或 Word 檔。"); return; }
                 const topic = essayTopics.find(t => t.id === currentEssayTopicId);
                 const student = studentData.find(s => s.id === essayStudentId);
                 if (!topic || !student) return;
@@ -1069,7 +1103,13 @@
   "recognizedText": "從照片辨識出的完整作文文字"
 }`;
                 try {
-                    const parts = [{ text: prompt }, ...essayImages.map(img => ({ inline_data: { mime_type: 'image/jpeg', data: img } }))];
+                    const wordTexts = essayExtraDocs.filter(d => d.mimeType === 'text/plain').map(d => d.content).join('\n\n');
+                    const fullPrompt = wordTexts ? `${prompt}\n\n【學生作文內容（從 Word 檔抽取）】\n${wordTexts}` : prompt;
+                    const parts = [
+                        { text: fullPrompt },
+                        ...essayImages.map(img => ({ inline_data: { mime_type: 'image/jpeg', data: img } })),
+                        ...essayExtraDocs.filter(d => d.mimeType === 'application/pdf').map(d => ({ inline_data: { mime_type: 'application/pdf', data: d.content } }))
+                    ];
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${userApiKey}`, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: "application/json" } })
@@ -1086,12 +1126,43 @@
                     };
                     setEssayResults([...essayResults.filter(r => !(r.topicId === topic.id && r.studentId === student.id)), newResult]);
                     setEssayImages([]);
+                    setEssayExtraDocs([]);
                 } catch (error) { alert(`❌ 批改失敗：${error.message}`); } finally { setEssayGrading(false); }
             };
 
             const deleteEssayResult = (resultId) => {
                 if (!confirm('確定刪除這筆批改紀錄？')) return;
                 setEssayResults(essayResults.filter(r => r.id !== resultId));
+            };
+
+            const ringServiceBell = () => {
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const freqs = [1318, 2637, 3955];
+                    freqs.forEach((freq, i) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.type = 'sine';
+                        osc.frequency.value = freq;
+                        const vol = i === 0 ? 0.8 : i === 1 ? 0.4 : 0.2;
+                        gain.gain.setValueAtTime(vol, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
+                        osc.start(ctx.currentTime);
+                        osc.stop(ctx.currentTime + 1.4);
+                    });
+                } catch(e) {}
+            };
+
+            const toggleBell = (mode) => {
+                if (bellIntervalRef.current) { clearInterval(bellIntervalRef.current); bellIntervalRef.current = null; }
+                if (bellMode === mode) { setBellMode(0); return; }
+                setBellMode(mode);
+                ringServiceBell();
+                if (mode === 2) {
+                    bellIntervalRef.current = setInterval(ringServiceBell, 650);
+                }
             };
 
             const getDebtSubjectOrder = (title) => {
@@ -1513,6 +1584,12 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                             <button onClick={() => setShowSettingsModal(true)} className="rpg-icon-btn border px-3 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="模組設定">
                                 <Icon component={Icons.Settings} size={18} />
                                 <span className="hidden sm:inline">模組設定</span>
+                            </button>
+                            <button onClick={() => toggleBell(1)} title="單響模式" className={`p-2 rounded-xl shadow-lg hover:scale-105 transition-all text-white font-bold text-xs flex flex-col items-center ${bellMode === 1 ? 'bg-amber-500 animate-pulse-slow' : 'bg-slate-500 hover:bg-amber-400'}`}>
+                                <Icon component={Icons.Bell} size={20} />
+                            </button>
+                            <button onClick={() => toggleBell(2)} title="連響模式" className={`p-2 rounded-xl shadow-lg hover:scale-105 transition-all text-white font-bold text-xs flex flex-col items-center ${bellMode === 2 ? 'bg-red-500 animate-pulse-slow' : 'bg-slate-500 hover:bg-red-400'}`}>
+                                <Icon component={Icons.BellRing} size={20} />
                             </button>
                             <button onClick={() => setShowAIModal(true)} className="rpg-ai-btn text-white p-2 rounded-xl shadow-lg hover:scale-105 transition-transform"><Icon component={Icons.Sparkles} size={20} /></button>
                         </div>
@@ -2528,12 +2605,13 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                         <div className="space-y-3">
                                             <div className="flex gap-2 flex-wrap items-center">
                                                 <label className="px-4 py-2.5 bg-slate-100 border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-200 cursor-pointer text-sm">
-                                                    📷 上傳作文照片（可多張）
-                                                    <input type="file" accept="image/*" multiple onChange={handleEssayImageUpload} className="hidden" />
+                                                    上傳作文（圖片 / PDF / Word）
+                                                    <input type="file" accept="image/*,.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={handleEssayImageUpload} className="hidden" />
                                                 </label>
-                                                {essayImages.length > 0 && <span className="text-sm text-slate-500 font-bold">已選 {essayImages.length} 張</span>}
-                                                {essayImages.length > 0 && <button onClick={() => setEssayImages([])} className="text-xs text-slate-400 hover:text-red-500 underline">清空</button>}
-                                                <button onClick={gradeEssay} disabled={essayGrading || !essayImages.length} className="px-6 py-2.5 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 disabled:bg-slate-300 shadow-md flex items-center gap-2 text-sm">
+                                                {essayImages.length > 0 && <span className="text-sm text-slate-500 font-bold">圖片 {essayImages.length} 張</span>}
+                                                {essayExtraDocs.length > 0 && <span className="text-sm text-violet-600 font-bold">{essayExtraDocs.map(d=>d.name).join('、')}</span>}
+                                                {(essayImages.length > 0 || essayExtraDocs.length > 0) && <button onClick={() => { setEssayImages([]); setEssayExtraDocs([]); }} className="text-xs text-slate-400 hover:text-red-500 underline">清空</button>}
+                                                <button onClick={gradeEssay} disabled={essayGrading || (!essayImages.length && !essayExtraDocs.length)} className="px-6 py-2.5 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 disabled:bg-slate-300 shadow-md flex items-center gap-2 text-sm">
                                                     {essayGrading ? <><Icon component={Icons.Loader2} className="animate-spin" size={16}/> AI 批改中...</> : <><Icon component={Icons.Sparkles} size={16}/> {curResult ? '重新批改' : '開始批改'}</>}
                                                 </button>
                                             </div>
