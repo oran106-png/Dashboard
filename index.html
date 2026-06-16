@@ -1144,40 +1144,26 @@
                     const ctx = bellCtxRef.current;
                     if (ctx.state === 'suspended') ctx.resume();
                     const now = ctx.currentTime;
-                    const dur = 0.55;
 
-                    // 鋸齒波主音（鬧鐘特有沙啞感）
-                    const osc = ctx.createOscillator();
-                    osc.type = 'sawtooth';
-                    osc.frequency.value = 900;
-
-                    // 12Hz 方波 AM 調製 → 急促振動感
-                    const lfo = ctx.createOscillator();
-                    lfo.type = 'square';
-                    lfo.frequency.value = 12;
-
-                    const lfoGain = ctx.createGain();
-                    lfoGain.gain.value = 0.45;
-
-                    const master = ctx.createGain();
-                    master.gain.value = 0.45;
-
-                    // 高通濾波讓音色更尖銳
-                    const filter = ctx.createBiquadFilter();
-                    filter.type = 'highpass';
-                    filter.frequency.value = 400;
-
-                    lfo.connect(lfoGain);
-                    lfoGain.connect(master.gain);
-                    osc.connect(filter);
-                    filter.connect(master);
-                    master.connect(ctx.destination);
-
-                    master.gain.setValueAtTime(0.45, now + dur - 0.05);
-                    master.gain.linearRampToValueAtTime(0, now + dur);
-
-                    lfo.start(now); lfo.stop(now + dur);
-                    osc.start(now); osc.stop(now + dur);
+                    // 鐵製服務鈴：主頻 + 輕微非諧波泛音 + 自然指數衰退
+                    const partials = [
+                        { freq: 820,  vol: 0.9, decay: 1.8 },
+                        { freq: 1760, vol: 0.45, decay: 1.2 },
+                        { freq: 2830, vol: 0.2,  decay: 0.8 },
+                        { freq: 4400, vol: 0.08, decay: 0.5 },
+                    ];
+                    partials.forEach(({ freq, vol, decay }) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.value = freq;
+                        gain.gain.setValueAtTime(vol, now);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(now);
+                        osc.stop(now + decay + 0.05);
+                    });
                 } catch(e) {}
             };
 
@@ -1187,7 +1173,7 @@
                 setBellMode(mode);
                 ringServiceBell();
                 if (mode === 2) {
-                    bellIntervalRef.current = setInterval(ringServiceBell, 650);
+                    bellIntervalRef.current = setInterval(ringServiceBell, 1100);
                 }
             };
 
