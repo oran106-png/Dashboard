@@ -1145,12 +1145,36 @@
                     if (ctx.state === 'suspended') ctx.resume();
                     const now = ctx.currentTime;
 
-                    // 鐵製服務鈴：主頻 + 輕微非諧波泛音 + 自然指數衰退
+                    // 動態壓縮避免多層疊加爆音
+                    const comp = ctx.createDynamicsCompressor();
+                    comp.threshold.value = -8;
+                    comp.knee.value = 4;
+                    comp.ratio.value = 6;
+                    comp.attack.value = 0.001;
+                    comp.release.value = 0.15;
+                    comp.connect(ctx.destination);
+
+                    // 金屬撞擊噪聲瞬態（讓起音有「叮」的尖銳感）
+                    const bufSize = Math.floor(ctx.sampleRate * 0.025);
+                    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+                    const data = buf.getChannelData(0);
+                    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
+                    const noise = ctx.createBufferSource();
+                    noise.buffer = buf;
+                    const noiseGain = ctx.createGain();
+                    noiseGain.gain.setValueAtTime(1.2, now);
+                    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+                    noise.connect(noiseGain);
+                    noiseGain.connect(comp);
+                    noise.start(now);
+
+                    // 厚實本體：較低主頻 + 強泛音
                     const partials = [
-                        { freq: 820,  vol: 0.9, decay: 1.8 },
-                        { freq: 1760, vol: 0.45, decay: 1.2 },
-                        { freq: 2830, vol: 0.2,  decay: 0.8 },
-                        { freq: 4400, vol: 0.08, decay: 0.5 },
+                        { freq: 560,  vol: 1.4, decay: 2.2 },
+                        { freq: 1430, vol: 1.0, decay: 1.5 },
+                        { freq: 2580, vol: 0.7, decay: 1.0 },
+                        { freq: 3900, vol: 0.4, decay: 0.6 },
+                        { freq: 5800, vol: 0.2, decay: 0.3 },
                     ];
                     partials.forEach(({ freq, vol, decay }) => {
                         const osc = ctx.createOscillator();
@@ -1160,7 +1184,7 @@
                         gain.gain.setValueAtTime(vol, now);
                         gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
                         osc.connect(gain);
-                        gain.connect(ctx.destination);
+                        gain.connect(comp);
                         osc.start(now);
                         osc.stop(now + decay + 0.05);
                     });
@@ -1173,7 +1197,7 @@
                 setBellMode(mode);
                 ringServiceBell();
                 if (mode === 2) {
-                    bellIntervalRef.current = setInterval(ringServiceBell, 1100);
+                    bellIntervalRef.current = setInterval(ringServiceBell, 100);
                 }
             };
 
