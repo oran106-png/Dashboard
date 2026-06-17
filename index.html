@@ -1137,26 +1137,35 @@
                 setEssayResults(essayResults.filter(r => r.id !== resultId));
             };
 
-            const ringServiceBell = async () => {
+            const playBellBuffer = (ctx, buffer) => {
+                const src = ctx.createBufferSource();
+                src.buffer = buffer;
+                const gain = ctx.createGain();
+                gain.gain.value = 3.0;
+                src.connect(gain);
+                gain.connect(ctx.destination);
+                src.start();
+            };
+
+            const ringServiceBell = () => {
                 try {
                     if (!bellCtxRef.current || bellCtxRef.current.state === 'closed') {
                         bellCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
                         bellBufferRef.current = null;
                     }
                     const ctx = bellCtxRef.current;
-                    if (ctx.state === 'suspended') await ctx.resume();
-                    if (!bellBufferRef.current) {
-                        const resp = await fetch('./bell.mp3');
-                        const arrayBuf = await resp.arrayBuffer();
-                        bellBufferRef.current = await ctx.decodeAudioData(arrayBuf);
-                    }
-                    const src = ctx.createBufferSource();
-                    src.buffer = bellBufferRef.current;
-                    const gain = ctx.createGain();
-                    gain.gain.value = 3.0;
-                    src.connect(gain);
-                    gain.connect(ctx.destination);
-                    src.start();
+                    const doPlay = () => {
+                        if (bellBufferRef.current) {
+                            playBellBuffer(ctx, bellBufferRef.current);
+                            return;
+                        }
+                        fetch('./bell.mp3')
+                            .then(r => r.arrayBuffer())
+                            .then(buf => ctx.decodeAudioData(buf))
+                            .then(decoded => { bellBufferRef.current = decoded; playBellBuffer(ctx, decoded); })
+                            .catch(() => {});
+                    };
+                    if (ctx.state === 'suspended') { ctx.resume().then(doPlay).catch(() => {}); } else { doPlay(); }
                 } catch(e) {}
             };
 
