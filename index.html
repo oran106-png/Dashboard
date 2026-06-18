@@ -1279,7 +1279,7 @@
                 if (!results.length) { alert('目前沒有任何批改紀錄可列印。'); return; }
                 const fs = printFontSize;
                 const pages = [];
-                for (let i = 0; i < results.length; i += 3) pages.push(results.slice(i, i + 3));
+                for (let i = 0; i < results.length; i += 2) pages.push(results.slice(i, i + 2));
                 const colHtml = (r) => {
                     if (!r) return '<div class="col empty"></div>';
                     const strengths = (r.result.strengths || []).join('；');
@@ -1293,7 +1293,7 @@
                     </div>`;
                 };
                 const pagesHtml = pages.map(pg => {
-                    const cols = [pg[0]||null, pg[1]||null, pg[2]||null];
+                    const cols = [pg[0]||null, pg[1]||null];
                     return `<div class="page">${cols.map(colHtml).join('')}</div>`;
                 }).join('');
                 const w = window.open('', '_blank');
