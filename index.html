@@ -1304,11 +1304,11 @@
 @media print{.print-hide{display:none!important}}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
-.page{width:100%;height:calc(210mm - 20mm);display:flex;flex-direction:row-reverse;page-break-after:always;overflow:hidden}
+.page{width:100%;min-height:calc(210mm - 20mm);display:flex;flex-direction:row-reverse;page-break-after:always;align-items:stretch}
 .page:last-child{page-break-after:auto}
-.col{flex:1;writing-mode:vertical-rl;padding:12px 8px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;overflow:hidden;color:#111;font-size:${fs}pt;line-height:2}
+.col{flex:1;writing-mode:vertical-rl;padding:12px 8px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;color:#111;font-size:${fs}pt;line-height:2;word-break:break-all}
 .col:last-child{border-left:none}
-.col.empty{flex:1;border-left:1.5px dashed #aaa}
+.col.empty{flex:1;border-left:1.5px dashed #aaa;min-height:calc(210mm - 20mm)}
 .col.empty:last-child{border-left:none}
 .col-name{font-size:${Math.max(10, fs-4)}pt;font-weight:bold;letter-spacing:3px;padding-bottom:7px;border-bottom:1px dashed #ccc;margin-bottom:10px;color:#888}
 .section{margin-bottom:14px}
