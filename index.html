@@ -515,6 +515,11 @@
             const [essayGrading, setEssayGrading] = useState(false);
             const [newTopicName, setNewTopicName] = useState("");
             const [newTopicNote, setNewTopicNote] = useState("");
+            const [printFontSize, setPrintFontSize] = useState(18);
+            const [showBatchMode, setShowBatchMode] = useState(false);
+            const [batchFiles, setBatchFiles] = useState({});
+            const [batchGrading, setBatchGrading] = useState(false);
+            const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, name: '' });
 
             // 寵物養成
             const [petNames, setPetNames] = useState({});
@@ -1062,13 +1067,7 @@
                 e.target.value = '';
             };
 
-            const gradeEssay = async () => {
-                if (!userApiKey) { alert("請先至右上角設定 API Key！"); setShowAIModal(true); return; }
-                if (!essayImages.length && !essayExtraDocs.length) { alert("請先上傳作文照片、PDF 或 Word 檔。"); return; }
-                const topic = essayTopics.find(t => t.id === currentEssayTopicId);
-                const student = studentData.find(s => s.id === essayStudentId);
-                if (!topic || !student) return;
-                setEssayGrading(true);
+            const callGeminiForStudent = async (topic, student, images, extraDocs) => {
                 const prompt = `你是一位富有經驗的臺灣小學五年級國語科老師，正在批改學生的作文。批改原則：
 - 評語誠實直接，優點明確肯定，問題明確指出，不模糊帶過
 - 語氣溫和但不迴避缺點，讓學生清楚知道哪裡需要改進
@@ -1104,32 +1103,100 @@
   "message": "給同學的話（50字以內，直接對學生說，誠實但溫和）",
   "recognizedText": "從照片辨識出的完整作文文字"
 }`;
+                const wordTexts = extraDocs.filter(d => d.mimeType === 'text/plain').map(d => d.content).join('\n\n');
+                const fullPrompt = wordTexts ? `${prompt}\n\n【學生作文內容（從 Word 檔抽取）】\n${wordTexts}` : prompt;
+                const parts = [
+                    { text: fullPrompt },
+                    ...images.map(img => ({ inline_data: { mime_type: 'image/jpeg', data: img } })),
+                    ...extraDocs.filter(d => d.mimeType === 'application/pdf').map(d => ({ inline_data: { mime_type: 'application/pdf', data: d.content } }))
+                ];
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${userApiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: "application/json" } })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message);
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                const result = JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
+                if (typeof result.score !== 'number') throw new Error('AI 回傳格式不正確，請再試一次。');
+                result.score = Math.max(70, Math.min(100, Math.round(result.score)));
+                return {
+                    id: 'e' + Date.now(), topicId: topic.id, studentId: student.id, studentName: student.name,
+                    score: result.score, result, gradedAt: new Date().toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                };
+            };
+
+            const gradeEssay = async () => {
+                if (!userApiKey) { alert("請先至右上角設定 API Key！"); setShowAIModal(true); return; }
+                if (!essayImages.length && !essayExtraDocs.length) { alert("請先上傳作文照片、PDF 或 Word 檔。"); return; }
+                const topic = essayTopics.find(t => t.id === currentEssayTopicId);
+                const student = studentData.find(s => s.id === essayStudentId);
+                if (!topic || !student) return;
+                setEssayGrading(true);
                 try {
-                    const wordTexts = essayExtraDocs.filter(d => d.mimeType === 'text/plain').map(d => d.content).join('\n\n');
-                    const fullPrompt = wordTexts ? `${prompt}\n\n【學生作文內容（從 Word 檔抽取）】\n${wordTexts}` : prompt;
-                    const parts = [
-                        { text: fullPrompt },
-                        ...essayImages.map(img => ({ inline_data: { mime_type: 'image/jpeg', data: img } })),
-                        ...essayExtraDocs.filter(d => d.mimeType === 'application/pdf').map(d => ({ inline_data: { mime_type: 'application/pdf', data: d.content } }))
-                    ];
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${userApiKey}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: "application/json" } })
-                    });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error.message);
-                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                    const result = JSON.parse(text.replace(/```json/gi, '').replace(/```/g, '').trim());
-                    if (typeof result.score !== 'number') throw new Error('AI 回傳格式不正確，請再試一次。');
-                    result.score = Math.max(70, Math.min(100, Math.round(result.score)));
-                    const newResult = {
-                        id: 'e' + Date.now(), topicId: topic.id, studentId: student.id, studentName: student.name,
-                        score: result.score, result, gradedAt: new Date().toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                    };
-                    setEssayResults([...essayResults.filter(r => !(r.topicId === topic.id && r.studentId === student.id)), newResult]);
+                    const newResult = await callGeminiForStudent(topic, student, essayImages, essayExtraDocs);
+                    setEssayResults(prev => [...prev.filter(r => !(r.topicId === topic.id && r.studentId === student.id)), newResult]);
                     setEssayImages([]);
                     setEssayExtraDocs([]);
                 } catch (error) { alert(`❌ 批改失敗：${error.message}`); } finally { setEssayGrading(false); }
+            };
+
+            const handleBatchFileUpload = async (studentId, e) => {
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+                const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                const pdfFiles = files.filter(f => f.type === 'application/pdf');
+                const wordFiles = files.filter(f => f.name.endsWith('.docx') || f.name.endsWith('.doc'));
+                try {
+                    let imgs = [];
+                    let docs = [];
+                    if (imageFiles.length) imgs = await Promise.all(imageFiles.map(essayFileToBase64));
+                    if (pdfFiles.length) {
+                        const pdfs = await Promise.all(pdfFiles.map(f => new Promise((res, rej) => {
+                            const reader = new FileReader();
+                            reader.onload = () => res({ name: f.name, mimeType: 'application/pdf', content: reader.result.split(',')[1] });
+                            reader.onerror = rej;
+                            reader.readAsDataURL(f);
+                        })));
+                        docs = [...docs, ...pdfs];
+                    }
+                    if (wordFiles.length) {
+                        const words = await Promise.all(wordFiles.map(f => new Promise((res, rej) => {
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                                try { const r = await window.mammoth.extractRawText({ arrayBuffer: reader.result }); res({ name: f.name, mimeType: 'text/plain', content: r.value }); }
+                                catch(err) { rej(err); }
+                            };
+                            reader.onerror = rej;
+                            reader.readAsArrayBuffer(f);
+                        })));
+                        docs = [...docs, ...words];
+                    }
+                    setBatchFiles(prev => ({ ...prev, [studentId]: { images: imgs, docs } }));
+                } catch(err) { alert(`❌ 檔案處理失敗：${err.message}`); }
+                e.target.value = '';
+            };
+
+            const startBatchGrading = async () => {
+                const topic = essayTopics.find(t => t.id === currentEssayTopicId);
+                if (!topic) return;
+                if (!userApiKey) { alert('請先設定 API Key'); setShowAIModal(true); return; }
+                const studentsWithFiles = studentData.filter(s => { const f = batchFiles[s.id]; return f && (f.images.length > 0 || f.docs.length > 0); });
+                if (!studentsWithFiles.length) { alert('請先為至少一位學生上傳作文檔案。'); return; }
+                setBatchGrading(true);
+                let accumulated = essayResults.filter(r => !(r.topicId === topic.id && studentsWithFiles.some(s => s.id === r.studentId)));
+                for (let i = 0; i < studentsWithFiles.length; i++) {
+                    const student = studentsWithFiles[i];
+                    setBatchProgress({ current: i + 1, total: studentsWithFiles.length, name: student.name });
+                    const files = batchFiles[student.id];
+                    try {
+                        const result = await callGeminiForStudent(topic, student, files.images, files.docs);
+                        accumulated = [...accumulated, result];
+                        setEssayResults([...accumulated]);
+                    } catch(e) { /* 跳過失敗的學生 */ }
+                }
+                setBatchGrading(false);
+                setBatchFiles({});
             };
 
             const deleteEssayResult = (resultId) => {
@@ -1210,6 +1277,7 @@
                 if (!topic) return;
                 const results = essayResults.filter(r => r.topicId === topic.id);
                 if (!results.length) { alert('目前沒有任何批改紀錄可列印。'); return; }
+                const fs = printFontSize;
                 const pages = [];
                 for (let i = 0; i < results.length; i += 3) pages.push(results.slice(i, i + 3));
                 const colHtml = (r) => {
@@ -1238,15 +1306,15 @@
 body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
 .page{width:100%;height:calc(210mm - 20mm);display:flex;flex-direction:row-reverse;page-break-after:always;overflow:hidden}
 .page:last-child{page-break-after:auto}
-.col{flex:1;writing-mode:vertical-rl;padding:12px 8px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;overflow:hidden;color:#111;font-size:18pt;line-height:2}
+.col{flex:1;writing-mode:vertical-rl;padding:12px 8px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;overflow:hidden;color:#111;font-size:${fs}pt;line-height:2}
 .col:last-child{border-left:none}
 .col.empty{flex:1;border-left:1.5px dashed #aaa}
 .col.empty:last-child{border-left:none}
-.col-name{font-size:14pt;font-weight:bold;letter-spacing:3px;padding-bottom:7px;border-bottom:1px dashed #ccc;margin-bottom:10px;color:#888}
+.col-name{font-size:${Math.max(10, fs-4)}pt;font-weight:bold;letter-spacing:3px;padding-bottom:7px;border-bottom:1px dashed #ccc;margin-bottom:10px;color:#888}
 .section{margin-bottom:14px}
-.lbl{font-size:13pt;font-weight:bold;margin-bottom:3px}
+.lbl{font-size:${Math.max(10, fs-4)}pt;font-weight:bold;margin-bottom:3px}
 .lbl.good{color:#1a7a3c}.lbl.improve{color:#b52020}.lbl.teacher{color:#7d6200}
-.txt{font-size:18pt;line-height:2}
+.txt{font-size:${fs}pt;line-height:2}
 </style></head><body>${pagesHtml}</body></html>`);
                 w.document.close();
                 setTimeout(() => w.print(), 600);
@@ -2593,9 +2661,21 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                             <h3 className="font-bold text-slate-600">「{curTopic.title}」批改進度（{topicResults.length}/{studentData.length}）</h3>
                                             <input type="text" placeholder="注意事項（給 AI 的批改重點）" value={curTopic.note || ''} onChange={e => updateEssayTopicNote(curTopic.id, e.target.value)} className="flex-1 min-w-0 p-2 border border-amber-200 rounded-xl bg-amber-50 focus:border-amber-400 outline-none text-sm placeholder-amber-300" />
                                             {topicResults.length > 0 && (
-                                                <button onClick={printEssay} className="px-4 py-2 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-800 shadow-sm text-sm whitespace-nowrap flex items-center gap-1"><Icon component={Icons.Printer} size={15}/> 列印批改單</button>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5">
+                                                        <span className="text-xs text-slate-500 whitespace-nowrap">字級</span>
+                                                        <select value={printFontSize} onChange={e => setPrintFontSize(Number(e.target.value))} className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer">
+                                                            {[10,12,14,16,18,20,22].map(s => <option key={s} value={s}>{s}pt</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <button onClick={printEssay} className="px-4 py-2 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-800 shadow-sm text-sm whitespace-nowrap flex items-center gap-1"><Icon component={Icons.Printer} size={15}/> 列印批改單</button>
+                                                </div>
                                             )}
+                                            <button onClick={() => { setShowBatchMode(!showBatchMode); setBatchFiles({}); }} className={`px-4 py-2 font-bold rounded-xl shadow-sm text-sm whitespace-nowrap flex items-center gap-1 ${showBatchMode ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100'}`}>
+                                                <Icon component={Icons.Sparkles} size={15}/> {showBatchMode ? '關閉批量模式' : '批量上傳批改'}
+                                            </button>
                                         </div>
+                                        {!showBatchMode && (
                                         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
                                             {studentData.map(s => {
                                                 const r = topicResults.find(x => x.studentId === s.id);
@@ -2607,6 +2687,43 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                                 </button>);
                                             })}
                                         </div>
+                                        )}
+
+                                        {showBatchMode && (
+                                        <div className="space-y-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                                {studentData.map(s => {
+                                                    const r = topicResults.find(x => x.studentId === s.id);
+                                                    const bf = batchFiles[s.id];
+                                                    const fileCount = bf ? bf.images.length + bf.docs.length : 0;
+                                                    return (
+                                                    <div key={s.id} className={`flex items-center gap-2 p-2 rounded-xl border-2 ${fileCount > 0 ? 'border-violet-300 bg-violet-50' : r ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                                                        <div className="flex-1 min-w-0">
+                                                            <span className="text-xs text-slate-400">{s.id}號　</span>
+                                                            <span className="text-sm font-bold text-slate-700">{s.name}</span>
+                                                            {r && !fileCount && <span className="ml-1 text-xs text-emerald-600 font-bold">✓{r.score}</span>}
+                                                            {fileCount > 0 && <span className="ml-1 text-xs text-violet-600 font-bold">已選 {fileCount} 份</span>}
+                                                        </div>
+                                                        <label className={`shrink-0 px-2 py-1 rounded-lg text-xs font-bold cursor-pointer border transition-all ${fileCount > 0 ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-300 hover:border-violet-400 hover:text-violet-600'}`}>
+                                                            {fileCount > 0 ? '重選' : '選檔'}
+                                                            <input type="file" accept="image/*,.pdf,.doc,.docx" multiple onChange={e => handleBatchFileUpload(s.id, e)} className="hidden" />
+                                                        </label>
+                                                    </div>);
+                                                })}
+                                            </div>
+                                            <div className="flex items-center gap-3 pt-1">
+                                                <button onClick={startBatchGrading} disabled={batchGrading || Object.keys(batchFiles).length === 0} className="px-6 py-2.5 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 disabled:bg-slate-300 shadow-md flex items-center gap-2 text-sm">
+                                                    {batchGrading
+                                                        ? <><Icon component={Icons.Loader2} className="animate-spin" size={16}/> 批改中 {batchProgress.current}/{batchProgress.total}：{batchProgress.name}...</>
+                                                        : <><Icon component={Icons.Sparkles} size={16}/> 一鍵批改所有已上傳作文（{Object.keys(batchFiles).length} 人）</>
+                                                    }
+                                                </button>
+                                                {Object.keys(batchFiles).length > 0 && !batchGrading && (
+                                                    <button onClick={() => setBatchFiles({})} className="text-xs text-slate-400 hover:text-red-500 underline">清除全部檔案</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        )}
                                     </div>
                                 )}
 
