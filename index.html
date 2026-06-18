@@ -515,7 +515,9 @@
             const [essayGrading, setEssayGrading] = useState(false);
             const [newTopicName, setNewTopicName] = useState("");
             const [newTopicNote, setNewTopicNote] = useState("");
-            const [printFontSize, setPrintFontSize] = useState(18);
+            const [printFontSize, setPrintFontSize] = useState(14);
+            const [printLineHeight, setPrintLineHeight] = useState(1.4);
+            const [printSpacing, setPrintSpacing] = useState(4);
             const [showBatchMode, setShowBatchMode] = useState(false);
             const [batchFiles, setBatchFiles] = useState({});
             const [batchGrading, setBatchGrading] = useState(false);
@@ -1278,6 +1280,8 @@
                 const results = essayResults.filter(r => r.topicId === topic.id);
                 if (!results.length) { alert('目前沒有任何批改紀錄可列印。'); return; }
                 const fs = printFontSize;
+                const lh = printLineHeight;
+                const sp = printSpacing;
                 const pages = [];
                 for (let i = 0; i < results.length; i += 2) pages.push(results.slice(i, i + 2));
                 const colHtml = (r) => {
@@ -1304,17 +1308,17 @@
 @media print{.print-hide{display:none!important}}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
-.page{width:100%;min-height:calc(210mm - 20mm);display:flex;flex-direction:row-reverse;page-break-after:always;align-items:stretch}
+.page{width:100%;height:calc(210mm - 20mm);display:flex;flex-direction:row-reverse;page-break-after:always;overflow:hidden}
 .page:last-child{page-break-after:auto}
-.col{flex:1;writing-mode:vertical-rl;padding:12px 8px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;color:#111;font-size:${fs}pt;line-height:2;word-break:break-all}
+.col{flex:1;writing-mode:vertical-rl;padding:${sp}px 6px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;overflow:hidden;color:#111;font-size:${fs}pt;line-height:${lh}}
 .col:last-child{border-left:none}
-.col.empty{flex:1;border-left:1.5px dashed #aaa;min-height:calc(210mm - 20mm)}
+.col.empty{flex:1;border-left:1.5px dashed #aaa}
 .col.empty:last-child{border-left:none}
-.col-name{font-size:${Math.max(10, fs-4)}pt;font-weight:bold;letter-spacing:3px;padding-bottom:7px;border-bottom:1px dashed #ccc;margin-bottom:10px;color:#888}
-.section{margin-bottom:14px}
-.lbl{font-size:${Math.max(10, fs-4)}pt;font-weight:bold;margin-bottom:3px}
+.col-name{font-size:${Math.max(8, fs-3)}pt;font-weight:bold;letter-spacing:2px;padding-bottom:${sp}px;border-bottom:1px dashed #ccc;margin-bottom:${sp}px;color:#888}
+.section{margin-bottom:${sp}px}
+.lbl{font-size:${Math.max(8, fs-3)}pt;font-weight:bold;margin-bottom:2px}
 .lbl.good{color:#1a7a3c}.lbl.improve{color:#b52020}.lbl.teacher{color:#7d6200}
-.txt{font-size:${fs}pt;line-height:2}
+.txt{font-size:${fs}pt;line-height:${lh}}
 </style></head><body>${pagesHtml}</body></html>`);
                 w.document.close();
                 setTimeout(() => w.print(), 600);
@@ -2666,6 +2670,18 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                                         <span className="text-xs text-slate-500 whitespace-nowrap">字級</span>
                                                         <select value={printFontSize} onChange={e => setPrintFontSize(Number(e.target.value))} className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer">
                                                             {[10,12,14,16,18,20,22].map(s => <option key={s} value={s}>{s}pt</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5">
+                                                        <span className="text-xs text-slate-500 whitespace-nowrap">行距</span>
+                                                        <select value={printLineHeight} onChange={e => setPrintLineHeight(Number(e.target.value))} className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer">
+                                                            {[1.2,1.4,1.6,1.8,2.0].map(v => <option key={v} value={v}>{v}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5">
+                                                        <span className="text-xs text-slate-500 whitespace-nowrap">間距</span>
+                                                        <select value={printSpacing} onChange={e => setPrintSpacing(Number(e.target.value))} className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer">
+                                                            {[2,4,6,8,10,14].map(v => <option key={v} value={v}>{v}px</option>)}
                                                         </select>
                                                     </div>
                                                     <button onClick={printEssay} className="px-4 py-2 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-800 shadow-sm text-sm whitespace-nowrap flex items-center gap-1"><Icon component={Icons.Printer} size={15}/> 列印批改單</button>
