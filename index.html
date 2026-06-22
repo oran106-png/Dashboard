@@ -779,6 +779,7 @@
                 if (lastDate && lastDate !== today) {
                     performDailySettlement(savedHws, load('class502_student_data_v8', INITIAL_STUDENT_DATA), load('class502_outstanding_hw_v2', []));
                     localStorage.setItem('class502_last_settlement_date', today);
+                    localStorage.setItem('class502_portal_sync_time', String(Date.now()));
                 } else if (!lastDate) localStorage.setItem('class502_last_settlement_date', today);
 
                 setIsLoaded(true);
@@ -901,6 +902,7 @@
             const updateHomeworkTitle = (hi, t) => { setHomeworks(p => { const n=[...p]; n[hi]={...n[hi], title:t}; return n; }); };
             const resetHomework = (hi) => { if(confirm('確定清空此欄作業？')) setHomeworks(p => { const n=[...p]; n[hi]={...n[hi],status:Array(STUDENT_COUNT).fill(0)}; return n; }); };
             const setAllHomeworkStatus = (hi, statusValue) => { if (!homeworks[hi].title.trim()) { alert('請先輸入作業名稱！'); return; } if (confirm(`確定要將此項作業設為全${statusValue === 2 ? '綠(完成)' : '黃(未訂正)'}嗎？`)) { setHomeworks(p => { const n = [...p]; n[hi] = {...n[hi], status: Array(STUDENT_COUNT).fill(statusValue)}; return n; }); } };
+            const deleteHomeworkColumn = (hi) => { if (confirm('確定刪除此作業欄位？')) setHomeworks(p => p.filter((_, i) => i !== hi)); };
             const clearDebt = (id) => { setOutstandingHomeworks(prev => prev.filter(d => d.id !== id)); };
 
             const clearAllPets = async () => {
@@ -1260,14 +1262,18 @@
                 const student = studentData.find(s => s.id === Number(studentId));
                 if (!student) return '';
                 const debts = outstandingHomeworks.filter(d => d.studentId === Number(studentId) && !d.isCompleted);
-                if (!debts.length) return `親愛的${student.name}家長，您好：\n\n${student.name}同學目前沒有待補作業，表現很棒！`;
+                const pendingReflections = selfReflections.filter(sr => sr.studentId === Number(studentId) && !sr.isCompleted);
+                if (!debts.length && !pendingReflections.length) return `親愛的${student.name}家長，您好：\n\n${student.name}同學目前沒有待補作業，表現很棒！`;
                 const sorted = [...debts].sort((a, b) => {
                     const oa = getDebtSubjectOrder(a.hwTitle), ob = getDebtSubjectOrder(b.hwTitle);
                     if (oa !== ob) return oa - ob;
                     return (a.timestamp || 0) - (b.timestamp || 0);
                 });
-                const lines = sorted.map(d => `・${d.hwTitle}`).join('\n');
-                return `親愛的${student.name}家長，您好：\n\n今天會請學生帶回以下未完成的作業，麻煩協助督促，謝謝！\n\n${lines}\n\n共 ${sorted.length} 項待完成。`;
+                const hwLines = sorted.map(d => `・${d.hwTitle}`).join('\n');
+                const reflectLines = pendingReflections.map(sr => `・自述單（${sr.date || ''}）第 ${sr.count} 張`).join('\n');
+                const allLines = [hwLines, reflectLines].filter(Boolean).join('\n');
+                const total = sorted.length + pendingReflections.length;
+                return `親愛的${student.name}家長，您好：\n\n今天會請學生帶回以下未完成的作業，麻煩協助督促，謝謝！\n\n${allLines}\n\n共 ${total} 項待完成。`;
             };
 
             const updateEssayTopicNote = (topicId, note) => {
@@ -1778,6 +1784,7 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                                             <button onClick={() => setAllHomeworkStatus(hIndex, 2)} disabled={!hasTitle} className="w-5 h-5 rounded-full bg-emerald-500 shadow-sm hover:scale-110 active:scale-95 disabled:opacity-30 transition-all flex items-center justify-center" title="全班標示為：已訂正(綠)"></button>
                                                             <button onClick={() => setAllHomeworkStatus(hIndex, 1)} disabled={!hasTitle} className="w-5 h-5 rounded-full bg-yellow-400 shadow-sm hover:scale-110 active:scale-95 disabled:opacity-30 transition-all flex items-center justify-center" title="全班標示為：已交未訂正(黃)"></button>
                                                             <button onClick={() => resetHomework(hIndex)} className="w-5 h-5 rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all" title="重置此欄"><Icon component={Icons.RotateCcw} size={14} /></button>
+                                                            <button onClick={() => deleteHomeworkColumn(hIndex)} className="w-5 h-5 rounded-full flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-100 transition-all" title="刪除此欄"><Icon component={Icons.Trash2} size={14} /></button>
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-6 gap-1.5 flex-1 content-start">
