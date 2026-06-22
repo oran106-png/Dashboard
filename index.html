@@ -484,6 +484,7 @@
             const [userHfKey, setUserHfKey] = useState("");
             const [copySuccess, setCopySuccess] = useState(false);
             const [copyHfSuccess, setCopyHfSuccess] = useState(false);
+            const [copyBackupApiSuccess, setCopyBackupApiSuccess] = useState(false);
             const [showAIModal, setShowAIModal] = useState(false);
             const [aiPrompt, setAiPrompt] = useState("");
             const [aiResponse, setAiResponse] = useState("");
@@ -964,6 +965,16 @@
                 document.body.appendChild(tempInput);
                 tempInput.select();
                 try { document.execCommand("copy"); setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000); }
+                catch (err) { alert("複製失敗，請手動複製。"); }
+                document.body.removeChild(tempInput);
+            };
+            const handleCopyBackupApiKey = () => {
+                const key = ["AQ.Ab8RN6", "L7Lpi6Jj0", "80Bd3ETwj", "YnDbWM0cZ", "HlTm2aTho", "TcUrA9dg"].join("");
+                const tempInput = document.createElement("input");
+                tempInput.value = key;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                try { document.execCommand("copy"); setCopyBackupApiSuccess(true); setTimeout(() => setCopyBackupApiSuccess(false), 2000); }
                 catch (err) { alert("複製失敗，請手動複製。"); }
                 document.body.removeChild(tempInput);
             };
@@ -3074,6 +3085,15 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                             </button>
                                         </div>
                                         <input type="password" placeholder="請貼上 API Key..." value={userApiKey} onChange={e=>setUserApiKey(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl bg-slate-50 focus:border-violet-500 outline-none font-mono" />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between items-end mb-1">
+                                            <label className="block text-xs font-bold text-slate-500">備用 Gemini API Key</label>
+                                            <button onClick={handleCopyBackupApiKey} className="text-xs font-bold text-orange-500 hover:text-orange-400 hover:underline transition-colors flex items-center gap-1">
+                                                {copyBackupApiSuccess ? '✅ 已複製！' : '點我複製備用 API'}
+                                            </button>
+                                        </div>
+                                        <p className="text-xs text-slate-400">點上方按鈕複製後，可直接貼入主要 API Key 欄位使用。</p>
                                     </div>
                                     <div>
                                         <div className="flex justify-between items-end mb-1">
