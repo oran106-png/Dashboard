@@ -1261,9 +1261,12 @@
             const generateDebtMessage = (studentId) => {
                 const student = studentData.find(s => s.id === Number(studentId));
                 if (!student) return '';
+                const studentIdx = studentData.findIndex(s => s.id === Number(studentId));
                 const debts = outstandingHomeworks.filter(d => d.studentId === Number(studentId) && !d.isCompleted);
                 const pendingReflections = selfReflections.filter(sr => sr.studentId === Number(studentId) && !sr.isCompleted);
-                if (!debts.length && !pendingReflections.length) return `親愛的${student.name}家長，您好：\n\n${student.name}同學目前沒有待補作業，表現很棒！`;
+                const todayHwLines = homeworks
+                    .filter(hw => hw.title.trim() && studentIdx > -1 && (hw.status[studentIdx] === 0 || hw.status[studentIdx] === 1))
+                    .map(hw => `・${hw.title}（${hw.status[studentIdx] === 0 ? '今日未繳交' : '今日未訂正'}）`);
                 const sorted = [...debts].sort((a, b) => {
                     const oa = getDebtSubjectOrder(a.hwTitle), ob = getDebtSubjectOrder(b.hwTitle);
                     if (oa !== ob) return oa - ob;
@@ -1271,8 +1274,9 @@
                 });
                 const hwLines = sorted.map(d => `・${d.hwTitle}`).join('\n');
                 const reflectLines = pendingReflections.map(sr => `・自述單（${sr.date || ''}）第 ${sr.count} 張`).join('\n');
-                const allLines = [hwLines, reflectLines].filter(Boolean).join('\n');
-                const total = sorted.length + pendingReflections.length;
+                const allLines = [...todayHwLines, hwLines, reflectLines].filter(Boolean).join('\n');
+                const total = todayHwLines.length + sorted.length + pendingReflections.length;
+                if (!total) return `親愛的${student.name}家長，您好：\n\n${student.name}同學目前沒有待補作業，表現很棒！`;
                 return `親愛的${student.name}家長，您好：\n\n今天會請學生帶回以下未完成的作業，麻煩協助督促，謝謝！\n\n${allLines}\n\n共 ${total} 項待完成。`;
             };
 
@@ -1300,6 +1304,7 @@
                         <div class="section"><div class="lbl good">【優點】</div><div class="txt">${strengths}</div></div>
                         <div class="section"><div class="lbl improve">【待加強】</div><div class="txt">${suggestions}</div></div>
                         <div class="section"><div class="lbl teacher">【老師的話】</div><div class="txt">${message}</div></div>
+                        <div class="badge-num">${r.studentId}</div>
                     </div>`;
                 };
                 const pagesHtml = pages.map(pg => {
@@ -1316,7 +1321,8 @@
 body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
 .page{width:100%;height:calc(210mm - 20mm);display:flex;flex-direction:row-reverse;page-break-after:always;overflow:hidden}
 .page:last-child{page-break-after:auto}
-.col{flex:1;writing-mode:vertical-rl;padding:${sp}px 6px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;overflow:hidden;color:#111;font-size:${fs}pt;line-height:${lh}}
+.col{position:relative;flex:1;writing-mode:vertical-rl;padding:${sp}px 6px;border-left:1.5px dashed #aaa;display:flex;flex-direction:column;overflow:hidden;color:#111;font-size:${fs}pt;line-height:${lh}}
+.badge-num{position:absolute;bottom:3px;left:3px;font-size:7pt;font-weight:bold;color:#bbb;writing-mode:horizontal-tb;font-family:Arial,sans-serif;line-height:1}
 .col:last-child{border-left:none}
 .col.empty{flex:1;border-left:1.5px dashed #aaa}
 .col.empty:last-child{border-left:none}
