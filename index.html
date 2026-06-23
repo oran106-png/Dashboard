@@ -800,14 +800,13 @@
                         ]);
                         const extTime = new Date(fext.updatedAt?.stringValue || 0).getTime();
                         const lastSync = parseInt(localStorage.getItem('class502_portal_sync_time') || '0');
-                        const savedHws = JSON.parse(localStorage.getItem('class502_homeworks_v10') || '[]');
-                        const hasHwData = savedHws.some(h => h.title);
+                        const neverSynced = lastSync === 0;
                         if (f.students?.arrayValue?.values) {
                             const sts = f.students.arrayValue.values.map(v => { const ff = v.mapValue.fields; return { id: parseInt(ff.id.integerValue), name: ff.name.stringValue, score: parseInt(ff.score.integerValue) }; });
                             localStorage.setItem('class502_student_data_v8', JSON.stringify(sts));
                             setStudentData(sts);
                         }
-                        if (extTime > lastSync || !hasHwData) {
+                        if (extTime > lastSync || neverSynced) {
                             if (fext.homeworksJson?.stringValue) { const v = JSON.parse(fext.homeworksJson.stringValue); localStorage.setItem('class502_homeworks_v10', fext.homeworksJson.stringValue); setHomeworks(v); }
                             if (fext.debtsJson?.stringValue) { const v = JSON.parse(fext.debtsJson.stringValue); localStorage.setItem('class502_outstanding_hw_v2', fext.debtsJson.stringValue); setOutstandingHomeworks(v); }
                             if (fext.reflectionsJson?.stringValue) { const v = JSON.parse(fext.reflectionsJson.stringValue); localStorage.setItem('class502_self_reflections_v1', fext.reflectionsJson.stringValue); setSelfReflections(v); }
