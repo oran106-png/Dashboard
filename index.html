@@ -384,7 +384,7 @@
         const CLOUD_KEYS = [
             'class502_homeworks_v10', 'class502_student_data_v8', 'class502_outstanding_hw_v2',
             'class502_self_reflections_v1', 'class502_volume', 'class_name_title',
-            'class502_redeem_history_v1', 'class502_exam_schedule_v1', 'class502_seats_v2',
+            'class502_redeem_history_v1', 'class502_exam_schedule_v1', 'class502_seats_v2', 'class502_seat_layouts_v1',
             'class502_score_history_v1', 'class502_rewards_v2', 'class502_behavior_records_v1',
             'class502_module_config_v1', 'class502_pet_names_v1', 'class502_pet_assignments_v1', 'class502_groups_v1',
             'class502_board_heading_v1', 'class502_board_notes_v1', 'class502_last_settlement_date',
@@ -499,6 +499,7 @@
             const [seatPositions, setSeatPositions] = useState({});
             const [showAiSeating, setShowAiSeating] = useState(false);
             const [seatLayoutType, setSeatLayoutType] = useState('single5');
+            const [savedSeatLayouts, setSavedSeatLayouts] = useState([]);
             const [studentTraits, setStudentTraits] = useState({});
             const [globalSeatRules, setGlobalSeatRules] = useState("");
             const [draggingInfo, setDraggingInfo] = useState(null);
@@ -538,6 +539,7 @@
             const [groupCount, setGroupCount] = useState(4);
             const [groupSize, setGroupSize] = useState(4);
             const [savedGroups, setSavedGroups] = useState([]);
+            const [groupsCopied, setGroupsCopied] = useState(false);
             // 互動黑板
             const [boardHeading, setBoardHeading] = useState("今日學習目標");
             const [boardNotes, setBoardNotes] = useState([]);
@@ -605,6 +607,18 @@
             };
 
             const resetSeats = () => { if(confirm("確定要重置座位排列嗎？")) setSeatPositions(generateDefaultSeats()); };
+
+            const saveCurrentSeatLayout = () => {
+                const name = prompt("為目前的座位配置命名（例如：分組座位、考試座位）：");
+                if (!name || !name.trim()) return;
+                setSavedSeatLayouts(prev => [...prev, { id: Date.now(), name: name.trim(), positions: seatPositions }]);
+            };
+            const applySeatLayout = (layoutId) => {
+                const layout = savedSeatLayouts.find(l => l.id === layoutId);
+                if (!layout) return;
+                if (confirm(`套用「${layout.name}」座位配置？目前的座位排列會被取代（未儲存的排列會遺失）。`)) setSeatPositions(layout.positions);
+            };
+            const deleteSeatLayout = (layoutId) => { if (confirm("確定刪除這組已儲存的座位配置？")) setSavedSeatLayouts(prev => prev.filter(l => l.id !== layoutId)); };
 
             const handleSeatPointerDown = (e, id) => {
                 if (e.cancelable) e.preventDefault();
@@ -768,6 +782,7 @@
                 const savedSeats = load('class502_seats_v2', null);
                 if (savedSeats) setSeatPositions(savedSeats);
                 else setSeatPositions(generateDefaultSeats());
+                setSavedSeatLayouts(load('class502_seat_layouts_v1', []));
                 
                 // 讀取設定檔，若有新屬性則用預設值補齊
                 const savedConfig = load('class502_module_config_v1', null);
@@ -855,6 +870,7 @@
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_redeem_history_v1', JSON.stringify(redeemHistory)); }, [redeemHistory, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_exam_schedule_v1', JSON.stringify(examSchedule)); }, [examSchedule, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_seats_v2', JSON.stringify(seatPositions)); }, [seatPositions, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_seat_layouts_v1', JSON.stringify(savedSeatLayouts)); }, [savedSeatLayouts, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_score_history_v1', JSON.stringify(scoreHistory)); }, [scoreHistory, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_rewards_v2', JSON.stringify(rewardsList)); }, [rewardsList, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_behavior_records_v1', JSON.stringify(behaviorRecords)); }, [behaviorRecords, isLoaded]);
@@ -1567,6 +1583,35 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                 setSavedGroups(groups.filter(g => g.length > 0));
             };
 
+            const formatGroupsText = () => savedGroups.map((g, i) => `第 ${i + 1} 組（${g.length}人）：${g.map(s => `${s.id}號${s.name}`).join('、')}`).join('\n');
+            const copyGroupsText = () => {
+                if (!savedGroups.length) { alert('目前沒有分組結果可複製。'); return; }
+                navigator.clipboard.writeText(formatGroupsText()).then(() => { setGroupsCopied(true); setTimeout(() => setGroupsCopied(false), 2500); });
+            };
+            const printGroups = () => {
+                if (!savedGroups.length) { alert('目前沒有分組結果可列印。'); return; }
+                const groupsHtml = savedGroups.map((g, i) => `
+                    <div class="group-card">
+                        <div class="group-title">第 ${i + 1} 組 <span class="count">(${g.length}人)</span></div>
+                        <div class="members">${g.map(s => `<span class="member">${s.id}號 ${s.name}</span>`).join('')}</div>
+                    </div>`).join('');
+                const w = window.open('', '_blank');
+                w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>分組結果</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Microsoft JhengHei',sans-serif}
+body{padding:24px}
+h1{font-size:22px;margin-bottom:18px}
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.group-card{border:2px solid #ddd;border-radius:12px;padding:14px;break-inside:avoid}
+.group-title{font-weight:bold;font-size:17px;margin-bottom:10px}
+.count{color:#888;font-size:12px;font-weight:normal}
+.members{display:flex;flex-wrap:wrap;gap:6px}
+.member{background:#f1f5f9;padding:4px 10px;border-radius:8px;font-size:14px}
+</style></head><body><h1>分組結果</h1><div class="groups">${groupsHtml}</div></body></html>`);
+                w.document.close();
+                setTimeout(() => w.print(), 400);
+            };
+
             // 互動黑板：便利貼
             const BOARD_COLORS = ['#fde68a', '#bfdbfe', '#bbf7d0', '#fecaca', '#e9d5ff', '#fed7aa'];
             const addBoardNote = () => {
@@ -1713,11 +1758,26 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                     if (!snap.exists) { setCloudStatus("雲端尚無備份資料。"); setCloudBusy(false); return; }
                     const data = snap.data();
                     if (data && data.payload) {
+                        const backup = {};
+                        CLOUD_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null) backup[k] = v; });
+                        localStorage.setItem('class502_pre_restore_backup_v1', JSON.stringify({ timestamp: new Date().toISOString(), data: backup }));
                         Object.keys(data.payload).forEach(k => { if (CLOUD_KEYS.indexOf(k) > -1) localStorage.setItem(k, data.payload[k]); });
-                        setCloudStatus("✅ 已從雲端還原，畫面即將重新載入…");
+                        setCloudStatus("✅ 已從雲端還原，畫面即將重新載入…（還原前的本機資料已自動備份）");
                         setTimeout(() => location.reload(), 1200);
                     } else { setCloudStatus("雲端資料格式異常。"); setCloudBusy(false); }
                 } catch (e) { setCloudStatus(`❌ 還原失敗：${e.message}`); setCloudBusy(false); }
+            };
+
+            const restoreLocalBackup = () => {
+                const raw = localStorage.getItem('class502_pre_restore_backup_v1');
+                if (!raw) { alert('目前沒有可復原的備份。'); return; }
+                if (!confirm('確定要復原回上次雲端還原「之前」的本機資料嗎？這會再次覆蓋目前的資料。')) return;
+                try {
+                    const backup = JSON.parse(raw);
+                    Object.keys(backup.data).forEach(k => localStorage.setItem(k, backup.data[k]));
+                    localStorage.removeItem('class502_pre_restore_backup_v1');
+                    location.reload();
+                } catch (e) { alert('備份資料損毀，無法復原。'); }
             };
 
             // 載入已儲存的雲端設定並初始化（僅一次）
@@ -2164,7 +2224,7 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                         {}
                         {currentTab === 'seats' && moduleConfig.tabSeats !== false && (
                             <div className="animate-slide-up h-[80vh] flex flex-col">
-                                <div className="flex justify-between items-center mb-4 shrink-0">
+                                <div className="flex justify-between items-center mb-3 shrink-0">
                                     <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><Icon component={Icons.Grid} className="text-indigo-500" /> 班級座位表</h2>
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => setShowAiSeating(true)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-1.5 rounded-lg hover:bg-indigo-200 font-bold shadow-sm transition-transform active:scale-95">
@@ -2175,13 +2235,30 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                         </button>
                                     </div>
                                 </div>
+                                <div className="flex flex-wrap items-center gap-1.5 mb-3 shrink-0">
+                                    <button onClick={saveCurrentSeatLayout} className="flex items-center gap-1 text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg hover:bg-emerald-100 font-bold">
+                                        儲存配置
+                                    </button>
+                                    {savedSeatLayouts.length > 0 && (
+                                        <select onChange={(e) => { if (e.target.value) applySeatLayout(Number(e.target.value)); e.target.value = ''; }} defaultValue="" className="text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-lg px-2 py-1.5 outline-none cursor-pointer">
+                                            <option value="">套用配置...</option>
+                                            {savedSeatLayouts.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                        </select>
+                                    )}
+                                    {savedSeatLayouts.map(l => (
+                                        <span key={l.id} className="flex items-center gap-1 bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-full">
+                                                {l.name}
+                                                <button onClick={() => deleteSeatLayout(l.id)} className="hover:text-red-500" title="刪除此配置">✕</button>
+                                            </span>
+                                        ))}
+                                </div>
 
-                                <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden bg-grid-pattern flex">
+                                <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 relative overflow-x-auto overflow-y-hidden bg-grid-pattern flex">
                                     <div className="w-12 bg-amber-100 border-r-2 border-amber-200 flex flex-col items-center justify-center shrink-0 shadow-inner z-0">
                                         <div className="writing-vertical-lr text-amber-700 font-black tracking-[0.5em] opacity-60">置物櫃</div>
                                     </div>
 
-                                    <div className="flex-1 flex flex-col relative px-4 md:px-12 py-8 min-w-[700px]">
+                                    <div className="flex-1 flex flex-col relative px-4 md:px-12 py-8 min-w-[700px] w-[700px] shrink-0">
                                         <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-8 py-2 rounded-xl shadow-lg font-bold text-sm z-10 select-none">講 台 / 黑 板</div>
                                         <div ref={seatingContainerRef} className="flex-1 grid grid-cols-6 grid-rows-6 gap-2 md:gap-4 mt-8 relative">
                                             {Array.from({length: 36}).map((_, i) => (
@@ -2213,7 +2290,7 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                         <div className="writing-vertical-lr text-amber-700 font-black tracking-[0.5em] opacity-60">置物櫃</div>
                                     </div>
                                 </div>
-                                <div className="text-center text-xs text-slate-400 mt-2 shrink-0">Tip: 可直接拖曳卡片調整座位，如果放到已有人的格子上，兩人位置會自動互換喔！</div>
+                                <div className="text-center text-xs text-slate-400 mt-2 shrink-0">Tip: 可直接拖曳卡片調整座位，如果放到已有人的格子上，兩人位置會自動互換喔！<span className="md:hidden">（畫面太窄可左右滑動查看）</span></div>
                             </div>
                         )}
                         
@@ -2700,6 +2777,12 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                         <Icon component={Icons.Shuffle} size={20}/> 開始分組
                                     </button>
                                 </div>
+                                {savedGroups.length > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <button onClick={copyGroupsText} className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg font-bold shadow-sm transition-colors ${groupsCopied ? 'bg-emerald-500 text-white' : 'bg-white border border-cyan-200 text-cyan-700 hover:bg-cyan-50'}`}>{groupsCopied ? '✅ 已複製！' : '複製文字'}</button>
+                                        <button onClick={printGroups} className="flex items-center gap-1 text-xs bg-slate-700 text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 font-bold shadow-sm"><Icon component={Icons.Printer} size={14}/> 列印</button>
+                                    </div>
+                                )}
                                 {savedGroups.length > 0 && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {savedGroups.map((group, gi) => (
@@ -3368,6 +3451,9 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                                 <button onClick={() => pushToCloud(false)} disabled={cloudBusy} className="py-3 bg-sky-600 text-white font-bold rounded-xl hover:bg-sky-700 disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"><Icon component={Icons.CloudUpload} size={18}/> 立即上傳</button>
                                                 <button onClick={pullFromCloud} disabled={cloudBusy} className="py-3 bg-white border-2 border-sky-200 text-sky-700 font-bold rounded-xl hover:bg-sky-50 disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"><Icon component={Icons.CloudDownload} size={18}/> 從雲端還原</button>
                                             </div>
+                                            {localStorage.getItem('class502_pre_restore_backup_v1') && (
+                                                <button onClick={restoreLocalBackup} className="w-full py-2 text-xs text-slate-500 hover:text-red-500 underline">復原成上次雲端還原前的本機資料</button>
+                                            )}
                                             <label className="flex items-center justify-between gap-3 p-3 border rounded-xl cursor-pointer bg-slate-50 border-slate-200">
                                                 <span className="font-bold text-sm text-slate-700">資料變動時自動上傳</span>
                                                 <div className="relative flex items-center">
