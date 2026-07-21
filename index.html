@@ -18,6 +18,8 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Word (.docx) 文字抽取 -->
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+    <!-- QR Code 本地端產生（不依賴外部 API） -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1647,6 +1649,17 @@ h1{font-size:22px;margin-bottom:18px}
             const STUDENT_PAGE_BASE = 'https://oran106-png.github.io/Dashboard/student.html';
             const buildQrData = (s) => `${STUDENT_PAGE_BASE}?id=${s.id}`;
 
+            const qrDataUrls = useMemo(() => {
+                const map = {};
+                studentData.forEach(s => {
+                    const qr = qrcode(0, 'M');
+                    qr.addData(buildQrData(s));
+                    qr.make();
+                    map[s.id] = qr.createDataURL(6, 4);
+                });
+                return map;
+            }, [studentData]);
+
             // 雲端：初始化 Firebase
             const initCloud = (configText) => {
                 if (typeof firebase === 'undefined') { setCloudStatus("❌ Firebase 函式庫尚未載入，請檢查網路連線。"); return false; }
@@ -1778,6 +1791,39 @@ h1{font-size:22px;margin-bottom:18px}
                     localStorage.removeItem('class502_pre_restore_backup_v1');
                     location.reload();
                 } catch (e) { alert('備份資料損毀，無法復原。'); }
+            };
+
+            const exportFullBackup = () => {
+                const data = {};
+                CLOUD_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null) data[k] = v; });
+                const payload = { exportedAt: new Date().toISOString(), className: classNameTitle, data };
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${classNameTitle || '班級'}_完整備份_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '')}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            };
+
+            const importFullBackup = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const parsed = JSON.parse(ev.target.result);
+                        if (!parsed.data) { alert('備份檔格式不正確。'); return; }
+                        if (!confirm(`確定要匯入「${parsed.className || '未命名班級'}」的備份嗎？（匯出時間：${parsed.exportedAt || '未知'}）\n這會覆蓋目前所有本機資料！`)) return;
+                        Object.keys(parsed.data).forEach(k => { if (CLOUD_KEYS.indexOf(k) > -1) localStorage.setItem(k, parsed.data[k]); });
+                        alert('匯入完成，畫面即將重新載入。');
+                        location.reload();
+                    } catch (err) { alert('備份檔損毀或格式錯誤，無法匯入。'); }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
             };
 
             // 載入已儲存的雲端設定並初始化（僅一次）
@@ -3065,7 +3111,7 @@ h1{font-size:22px;margin-bottom:18px}
                                     {studentData.map(s => (
                                         <div key={s.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex flex-col items-center">
                                             <div className="text-xs font-bold text-slate-400 self-start mb-2">{s.id}號</div>
-                                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=4&data=${encodeURIComponent(buildQrData(s))}`} alt={`${s.name} QR`} width="160" height="160" loading="lazy" className="w-full aspect-square rounded-lg border border-slate-100" />
+                                            <img src={qrDataUrls[s.id]} alt={`${s.name} QR`} width="160" height="160" className="w-full aspect-square rounded-lg border border-slate-100" />
                                             <div className="font-bold text-slate-700 mt-2">{s.name}</div>
                                         </div>
                                     ))}
@@ -3419,6 +3465,17 @@ h1{font-size:22px;margin-bottom:18px}
                                 </div>
                                 <div className="p-6 space-y-5 overflow-y-auto">
                                     {cloudStatus && <div className="text-sm font-bold bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-600">{cloudStatus}</div>}
+
+                                    <div>
+                                        <div className="text-xs font-bold text-slate-500 mb-2">本機完整備份（不經雲端，存成檔案，隨時可用）</div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button onClick={exportFullBackup} className="py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 shadow-sm flex items-center justify-center gap-2 text-sm"><Icon component={Icons.Download} size={16}/> 匯出備份檔</button>
+                                            <label className="py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 shadow-sm flex items-center justify-center gap-2 text-sm cursor-pointer">
+                                                <Icon component={Icons.CloudUpload} size={16}/> 匯入備份檔
+                                                <input type="file" accept="application/json,.json" onChange={importFullBackup} className="hidden" />
+                                            </label>
+                                        </div>
+                                    </div>
 
                                     {!cloudUser && (
                                         <div className="space-y-2">
