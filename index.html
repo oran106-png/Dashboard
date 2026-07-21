@@ -390,7 +390,7 @@
             'class502_score_history_v1', 'class502_rewards_v2', 'class502_behavior_records_v1',
             'class502_module_config_v1', 'class502_pet_names_v1', 'class502_pet_assignments_v1', 'class502_groups_v1',
             'class502_board_heading_v1', 'class502_board_notes_v1', 'class502_last_settlement_date',
-            'class502_essays_v1'
+            'class502_essays_v1', 'class502_attendance_v1'
         ];
         // 內建的 Firebase 設定（ZheTeacher 專案，2026-06-07 由 Claude 代為建立）
         const DEFAULT_FIREBASE_CONFIG = JSON.stringify({
@@ -437,8 +437,18 @@
             volumeWidget: true, quickTools: true, timer: true, homework: true, 
             reflection: true, freeStudents: true, warningDebts: true, outstandingDebts: true,
             tabExam: true, tabSeats: true, tabScore: true, tabRedeem: true, tabRecords: true,
-            tabPets: true, tabGroups: true, tabBoard: true, tabQR: true, tabEssay: true
+            tabPets: true, tabGroups: true, tabBoard: true, tabQR: true, tabEssay: true, tabAttendance: true
         };
+
+        const ATTENDANCE_TYPES = [
+            { key: 'sick', label: '病假', dot: 'bg-amber-400' },
+            { key: 'personal', label: '事假', dot: 'bg-orange-400' },
+            { key: 'official', label: '公假', dot: 'bg-sky-400' },
+            { key: 'bereavement', label: '喪假', dot: 'bg-slate-400' },
+            { key: 'absent', label: '曠課', dot: 'bg-red-500' },
+            { key: 'late', label: '遲到', dot: 'bg-yellow-400' },
+            { key: 'early', label: '早退', dot: 'bg-purple-400' }
+        ];
 
 
         const App = () => {
@@ -541,6 +551,8 @@
             const [groupCount, setGroupCount] = useState(4);
             const [groupSize, setGroupSize] = useState(4);
             const [savedGroups, setSavedGroups] = useState([]);
+            const [attendanceRecords, setAttendanceRecords] = useState([]);
+            const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
             const [groupsCopied, setGroupsCopied] = useState(false);
             // 互動黑板
             const [boardHeading, setBoardHeading] = useState("今日學習目標");
@@ -778,6 +790,7 @@
                 const savedAssignments = load('class502_pet_assignments_v1', {});
                 setPetAssignments(savedAssignments);
                 setSavedGroups(load('class502_groups_v1', []));
+                setAttendanceRecords(load('class502_attendance_v1', []));
                 setBoardHeading(localStorage.getItem('class502_board_heading_v1') || "今日學習目標");
                 setBoardNotes(load('class502_board_notes_v1', []));
 
@@ -841,7 +854,8 @@
                 const tabKeyMap = {
                     'exam': 'tabExam', 'seats': 'tabSeats', 'score': 'tabScore',
                     'redeem': 'tabRedeem', 'records': 'tabRecords',
-                    'pets': 'tabPets', 'groups': 'tabGroups', 'board': 'tabBoard', 'qr': 'tabQR', 'essay': 'tabEssay'
+                    'pets': 'tabPets', 'groups': 'tabGroups', 'board': 'tabBoard', 'qr': 'tabQR', 'essay': 'tabEssay',
+                    'attendance': 'tabAttendance'
                 };
                 const activeKey = tabKeyMap[currentTab];
                 if (activeKey && moduleConfig[activeKey] === false) {
@@ -896,6 +910,7 @@
             const getPetImgKey = (lineId, stage, isLeg) => isLeg ? `${lineId}_l` : `${lineId}_${stage}`;
 
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_groups_v1', JSON.stringify(savedGroups)); }, [savedGroups, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_attendance_v1', JSON.stringify(attendanceRecords)); }, [attendanceRecords, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_heading_v1', boardHeading); }, [boardHeading, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_notes_v1', JSON.stringify(boardNotes)); }, [boardNotes, isLoaded]);
 
@@ -960,6 +975,64 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            };
+
+            const setAttendanceStatus = (studentId, date, typeKey) => {
+                setAttendanceRecords(prev => {
+                    const others = prev.filter(r => !(r.studentId === studentId && r.date === date));
+                    if (!typeKey) return others;
+                    const student = studentData.find(s => s.id === studentId);
+                    return [...others, { id: Date.now() + Math.random(), studentId, studentName: student ? student.name : '', date, type: typeKey }];
+                });
+            };
+
+            const attendanceSummary = useMemo(() => {
+                const summary = {};
+                studentData.forEach(s => {
+                    summary[s.id] = {};
+                    ATTENDANCE_TYPES.forEach(t => { summary[s.id][t.key] = 0; });
+                });
+                attendanceRecords.forEach(r => {
+                    if (summary[r.studentId] && summary[r.studentId][r.type] !== undefined) summary[r.studentId][r.type] += 1;
+                });
+                return summary;
+            }, [attendanceRecords, studentData]);
+
+            const exportAttendanceSummary = () => {
+                if (!attendanceRecords.length) { alert('目前沒有任何出缺勤記錄可以匯出。'); return; }
+                let csvContent = "座號,姓名," + ATTENDANCE_TYPES.map(t => t.label).join(',') + ",合計\n";
+                studentData.forEach(s => {
+                    const counts = ATTENDANCE_TYPES.map(t => (attendanceSummary[s.id] && attendanceSummary[s.id][t.key]) || 0);
+                    const total = counts.reduce((a, b) => a + b, 0);
+                    csvContent += `${s.id},${s.name},${counts.join(',')},${total}\n`;
+                });
+                const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `502班_出缺勤統計_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '')}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const exportAttendanceLog = () => {
+                if (!attendanceRecords.length) { alert('目前沒有任何出缺勤記錄可以匯出。'); return; }
+                let csvContent = "日期,座號,姓名,假別\n";
+                [...attendanceRecords].sort((a, b) => a.date === b.date ? a.studentId - b.studentId : a.date.localeCompare(b.date)).forEach(r => {
+                    const typeLabel = (ATTENDANCE_TYPES.find(t => t.key === r.type) || {}).label || r.type;
+                    csvContent += `${r.date},${r.studentId},${r.studentName},${typeLabel}\n`;
+                });
+                const bom2 = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                const blob2 = new Blob([bom2, csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url2 = URL.createObjectURL(blob2);
+                const link2 = document.createElement("a");
+                link2.setAttribute("href", url2);
+                link2.setAttribute("download", `502班_出缺勤明細_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '')}.csv`);
+                document.body.appendChild(link2);
+                link2.click();
+                document.body.removeChild(link2);
             };
 
             const moveIncompleteHomeworkToDebt = () => {
@@ -1840,7 +1913,7 @@ h1{font-size:22px;margin-bottom:18px}
                 if (!isLoaded || !cloudUser || !cloudAutoSync) return;
                 const t = setTimeout(() => pushToCloud(true), 4000);
                 return () => clearTimeout(t);
-            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, examSchedule, petNames, savedGroups, boardNotes, boardHeading, moduleConfig, cloudUser, cloudAutoSync, isLoaded]);
+            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, examSchedule, petNames, savedGroups, attendanceRecords, boardNotes, boardHeading, moduleConfig, cloudUser, cloudAutoSync, isLoaded]);
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
@@ -1855,6 +1928,7 @@ h1{font-size:22px;margin-bottom:18px}
                 { id: 'board', label: '互動黑板', icon: Icons.Edit, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabBoard },
                 { id: 'essay', label: '作文批改', icon: Icons.BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabEssay },
                 { id: 'qr', label: '學生QR', icon: Icons.QrCode, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabQR },
+                { id: 'attendance', label: '出缺勤', icon: Icons.UserCheck, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabAttendance },
             ].filter(tab => tab.visible !== false);
 
             return (
@@ -3118,6 +3192,72 @@ h1{font-size:22px;margin-bottom:18px}
                                 </div>
                             </div>
                         )}
+
+                        {currentTab === 'attendance' && moduleConfig.tabAttendance !== false && (
+                            <div className="animate-slide-up space-y-4">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><Icon component={Icons.UserCheck} className="text-teal-600" /> 出缺勤記錄</h2>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="text-sm font-bold text-slate-600 bg-white border border-slate-300 rounded-lg px-3 py-2 outline-none" />
+                                    <button onClick={exportAttendanceLog} className="flex items-center gap-1 text-xs bg-white border border-teal-200 text-teal-700 px-3 py-2 rounded-lg hover:bg-teal-50 font-bold shadow-sm"><Icon component={Icons.Download} size={14}/> 匯出明細</button>
+                                    <button onClick={exportAttendanceSummary} className="flex items-center gap-1 text-xs bg-teal-600 text-white px-3 py-2 rounded-lg hover:bg-teal-700 font-bold shadow-sm"><Icon component={Icons.Download} size={14}/> 匯出統計</button>
+                                </div>
+
+                                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-4">
+                                    <div className="text-xs font-bold text-slate-400 mb-3">{attendanceDate} 當日狀態（點選假別；已選同一項再點一次取消回到正常出席）</div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {studentData.map(s => {
+                                            const rec = attendanceRecords.find(r => r.studentId === s.id && r.date === attendanceDate);
+                                            return (
+                                                <div key={s.id} className={`p-3 rounded-xl border-2 ${rec ? 'border-amber-200 bg-amber-50' : 'border-slate-100 bg-slate-50'}`}>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="bg-slate-200 text-slate-600 text-xs px-1.5 py-0.5 rounded font-bold">{s.id}號</span>
+                                                        <span className="font-bold text-slate-700">{s.name}</span>
+                                                        {!rec && <span className="ml-auto text-xs font-bold text-emerald-600">正常出席</span>}
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {ATTENDANCE_TYPES.map(t => (
+                                                            <button key={t.key} onClick={() => setAttendanceStatus(s.id, attendanceDate, (rec && rec.type === t.key) ? null : t.key)} className={`text-xs px-2 py-1 rounded-full font-bold border transition-colors ${(rec && rec.type === t.key) ? `${t.dot} text-white border-transparent` : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}>{t.label}</button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="p-3 bg-slate-50 border-b border-slate-100 font-bold text-slate-600 text-sm">學期出缺勤統計</div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-slate-400">
+                                                    <th className="py-2 px-3 whitespace-nowrap">座號</th>
+                                                    <th className="py-2 px-3 whitespace-nowrap">姓名</th>
+                                                    {ATTENDANCE_TYPES.map(t => <th key={t.key} className="py-2 px-2 text-center whitespace-nowrap">{t.label}</th>)}
+                                                    <th className="py-2 px-3 text-center">合計</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {studentData.map(s => {
+                                                    const counts = ATTENDANCE_TYPES.map(t => (attendanceSummary[s.id] && attendanceSummary[s.id][t.key]) || 0);
+                                                    const total = counts.reduce((a, b) => a + b, 0);
+                                                    return (
+                                                        <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                            <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">{s.id}</td>
+                                                            <td className="py-2 px-3 font-bold text-slate-700 whitespace-nowrap">{s.name}</td>
+                                                            {counts.map((c, i) => <td key={i} className="py-2 px-2 text-center">{c > 0 ? c : <span className="text-slate-200">-</span>}</td>)}
+                                                            <td className="py-2 px-3 text-center font-bold">{total > 0 ? total : <span className="text-slate-200">-</span>}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </main>
 
                     {}
@@ -3405,7 +3545,8 @@ h1{font-size:22px;margin-bottom:18px}
                                                 { key: 'tabGroups', label: '分組工具' },
                                                 { key: 'tabBoard', label: '互動黑板' },
                                                 { key: 'tabQR', label: '學生QR' },
-                                                { key: 'tabEssay', label: '作文批改' }
+                                                { key: 'tabEssay', label: '作文批改' },
+                                                { key: 'tabAttendance', label: '出缺勤' }
                                             ].map(mod => (
                                                 <label key={mod.key} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${moduleConfig[mod.key] !== false ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                                                     <input type="checkbox" checked={moduleConfig[mod.key] !== false} onChange={(e) => setModuleConfig({...moduleConfig, [mod.key]: e.target.checked})} className="w-5 h-5 accent-indigo-600 rounded cursor-pointer" />
