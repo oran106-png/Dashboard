@@ -391,7 +391,12 @@
             'class502_module_config_v1', 'class502_pet_names_v1', 'class502_pet_assignments_v1', 'class502_groups_v1',
             'class502_board_heading_v1', 'class502_board_notes_v1', 'class502_last_settlement_date',
             'class502_essays_v1', 'class502_attendance_v1',
-            'class502_grade_subjects_v1', 'class502_grade_scores_v1', 'class502_helper_records_v1'
+            'class502_grade_subjects_v1', 'class502_grade_scores_v1', 'class502_helper_records_v1',
+            'class502_ui_theme_v1'
+        ];
+
+        const THEME_OPTIONS = [
+            { key: 'classic', label: '經典教室（原版）', swatch: ['#4f46e5', '#f8fafc', '#334155'] }
         ];
         // 內建的 Firebase 設定（ZheTeacher 專案，2026-06-07 由 Claude 代為建立）
         const DEFAULT_FIREBASE_CONFIG = JSON.stringify({
@@ -456,6 +461,7 @@
         const App = () => {
             const [currentTab, setCurrentTab] = useState('dashboard');
             const [classNameTitle, setClassNameTitle] = useState("502 班級");
+            const [uiTheme, setUiTheme] = useState('classic');
             const [currentTime, setCurrentTime] = useState(new Date());
             const [studentData, setStudentData] = useState(INITIAL_STUDENT_DATA);
             const [isLoaded, setIsLoaded] = useState(false);
@@ -785,6 +791,7 @@
                 setStudentData(load('class502_student_data_v8', INITIAL_STUDENT_DATA));
                 setCurrentLevel(parseInt(localStorage.getItem('class502_volume') || '0'));
                 setClassNameTitle(localStorage.getItem('class_name_title') || "502 班級");
+                setUiTheme(localStorage.getItem('class502_ui_theme_v1') || 'classic');
                 setUserApiKey(localStorage.getItem('class502_api_key') || "");
                 setUserHfKey(localStorage.getItem('class502_hf_key') || "");
                 setRedeemHistory(load('class502_redeem_history_v1', []));
@@ -881,6 +888,8 @@
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_self_reflections_v1', JSON.stringify(selfReflections)); }, [selfReflections, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_volume', currentLevel.toString()); }, [currentLevel, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class_name_title', classNameTitle); }, [classNameTitle, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_ui_theme_v1', uiTheme); }, [uiTheme, isLoaded]);
+            useEffect(() => { document.documentElement.setAttribute('data-theme', uiTheme); }, [uiTheme]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_api_key', userApiKey); }, [userApiKey, isLoaded]);
 
             // 作文批改：載入與儲存
@@ -2022,7 +2031,7 @@ h1{font-size:22px;margin-bottom:18px}
                 if (!isLoaded || !cloudUser || !cloudAutoSync) return;
                 const t = setTimeout(() => pushToCloud(true), 4000);
                 return () => clearTimeout(t);
-            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, examSchedule, petNames, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, boardNotes, boardHeading, moduleConfig, cloudUser, cloudAutoSync, isLoaded]);
+            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, examSchedule, petNames, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, uiTheme, boardNotes, boardHeading, moduleConfig, cloudUser, cloudAutoSync, isLoaded]);
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
@@ -3759,7 +3768,23 @@ h1{font-size:22px;margin-bottom:18px}
                                     <button onClick={() => setShowSettingsModal(false)} className="hover:text-slate-300"><Icon component={Icons.X}/></button>
                                 </div>
                                 <div className="p-6 space-y-6 bg-slate-50 flex-1 overflow-y-auto">
-                                    
+
+                                    {/* 外觀主題 */}
+                                    <div>
+                                        <p className="text-sm text-slate-500 font-bold mb-3 flex items-center gap-2"><Icon component={Icons.Sparkles} size={16}/> 外觀主題</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {THEME_OPTIONS.map(t => (
+                                                <button key={t.key} onClick={() => setUiTheme(t.key)} className={`flex items-center gap-3 p-3 border-2 rounded-xl transition-all text-left ${uiTheme === t.key ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'bg-white border-slate-200 hover:border-indigo-200'}`}>
+                                                    <div className="flex shrink-0 -space-x-1.5">
+                                                        {t.swatch.map((c, i) => <span key={i} className="w-5 h-5 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: c }}></span>)}
+                                                    </div>
+                                                    <span className={`font-bold text-sm ${uiTheme === t.key ? 'text-indigo-700' : 'text-slate-600'}`}>{t.label}</span>
+                                                    {uiTheme === t.key && <Icon component={Icons.CheckSquare} size={16} className="text-indigo-500 ml-auto shrink-0"/>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
                                     {/* 儀表板小工具 */}
                                     <div>
                                         <p className="text-sm text-slate-500 font-bold mb-3 flex items-center gap-2"><Icon component={Icons.LayoutDashboard} size={16}/> 儀表板小工具</p>
