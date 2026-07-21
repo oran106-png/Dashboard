@@ -519,6 +519,7 @@
             const [printFontSize, setPrintFontSize] = useState(14);
             const [printLineHeight, setPrintLineHeight] = useState(1.4);
             const [printSpacing, setPrintSpacing] = useState(4);
+            const [printColumns, setPrintColumns] = useState(2);
             const [showBatchMode, setShowBatchMode] = useState(false);
             const [batchFiles, setBatchFiles] = useState({});
             const [batchGrading, setBatchGrading] = useState(false);
@@ -557,6 +558,7 @@
             const [cloudReady, setCloudReady] = useState(false);
             const [cloudStatus, setCloudStatus] = useState("");
             const [cloudBusy, setCloudBusy] = useState(false);
+            const [lastSyncTime, setLastSyncTime] = useState(null);
             const [cloudAutoSync, setCloudAutoSync] = useState(true);
             const [portalSyncStatus, setPortalSyncStatus] = useState('');
             const cloudDbRef = useRef(null);
@@ -812,6 +814,7 @@
                             if (fext.reflectionsJson?.stringValue) { const v = JSON.parse(fext.reflectionsJson.stringValue); localStorage.setItem('class502_self_reflections_v1', fext.reflectionsJson.stringValue); setSelfReflections(v); }
                             localStorage.setItem('class502_portal_sync_time', String(extTime));
                         }
+                        setLastSyncTime(Date.now());
                     } catch(e) {}
                 })();
             }, []);
@@ -903,7 +906,43 @@
             const resetHomework = (hi) => { if(confirm('確定清空此欄作業？')) setHomeworks(p => { const n=[...p]; n[hi]={...n[hi],status:Array(STUDENT_COUNT).fill(0)}; return n; }); };
             const setAllHomeworkStatus = (hi, statusValue) => { if (!homeworks[hi].title.trim()) { alert('請先輸入作業名稱！'); return; } if (confirm(`確定要將此項作業設為全${statusValue === 2 ? '綠(完成)' : '黃(未訂正)'}嗎？`)) { setHomeworks(p => { const n = [...p]; n[hi] = {...n[hi], status: Array(STUDENT_COUNT).fill(statusValue)}; return n; }); } };
             const deleteHomeworkColumn = (hi) => { if (confirm('確定刪除此作業欄位？')) setHomeworks(p => p.filter((_, i) => i !== hi)); };
+            const [draggedHwIndex, setDraggedHwIndex] = useState(null);
+            const reorderHomeworkColumn = (fromIndex, toIndex) => {
+                if (fromIndex === toIndex) return;
+                setHomeworks(prev => {
+                    const arr = [...prev];
+                    const [moved] = arr.splice(fromIndex, 1);
+                    arr.splice(toIndex, 0, moved);
+                    return arr;
+                });
+            };
             const clearDebt = (id) => { setOutstandingHomeworks(prev => prev.filter(d => d.id !== id)); };
+
+            const formatSyncAgo = () => {
+                if (!lastSyncTime) return '尚未同步';
+                const diffMin = Math.floor((currentTime.getTime() - lastSyncTime) / 60000);
+                if (diffMin < 1) return '剛剛已同步';
+                if (diffMin < 60) return `${diffMin} 分鐘前同步`;
+                return `${new Date(lastSyncTime).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' })} 同步`;
+            };
+
+            const exportDebtsToExcel = () => {
+                if (outstandingHomeworks.length === 0) { alert("目前沒有任何待補作業可以匯出。"); return; }
+                let csvContent = "座號,姓名,項目,起始日期\n";
+                [...outstandingHomeworks].sort((a,b) => a.studentId - b.studentId).forEach(d => {
+                    const title = `"${(d.hwTitle || "").replace(/"/g, '""')}"`;
+                    csvContent += `${d.studentId},${d.studentName},${title},${d.date || ""}\n`;
+                });
+                const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `502班_待補作業清單_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '')}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
 
             const moveIncompleteHomeworkToDebt = () => {
                 const additions = [];
@@ -1330,8 +1369,9 @@
                 const fs = printFontSize;
                 const lh = printLineHeight;
                 const sp = printSpacing;
+                const pc = printColumns;
                 const pages = [];
-                for (let i = 0; i < results.length; i += 2) pages.push(results.slice(i, i + 2));
+                for (let i = 0; i < results.length; i += pc) pages.push(results.slice(i, i + pc));
                 const colHtml = (r) => {
                     if (!r) return '<div class="col empty"></div>';
                     const strengths = (r.result.strengths || []).join('；');
@@ -1346,7 +1386,7 @@
                     </div>`;
                 };
                 const pagesHtml = pages.map(pg => {
-                    const cols = [pg[0]||null, pg[1]||null];
+                    const cols = Array.from({ length: pc }, (_, i) => pg[i] || null);
                     return `<div class="page">${cols.map(colHtml).join('')}</div>`;
                 }).join('');
                 const w = window.open('', '_blank');
@@ -1481,6 +1521,18 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                 });
                 return groups;
             }, [outstandingHomeworks]);
+
+            const groupedReflections = useMemo(() => {
+                const groups = {};
+                selfReflections.filter(sr => !sr.isCompleted).forEach(sr => {
+                    if (!groups[sr.studentId]) groups[sr.studentId] = { studentName: sr.studentName, items: [] };
+                    groups[sr.studentId].items.push(sr);
+                });
+                return groups;
+            }, [selfReflections]);
+
+            const clearAllDebtsForStudent = (studentId) => { setOutstandingHomeworks(prev => prev.filter(d => d.studentId !== studentId)); };
+            const completeAllReflectionsForStudent = (studentId) => { setSelfReflections(prev => prev.map(sr => sr.studentId === studentId && !sr.isCompleted ? { ...sr, isCompleted: true } : sr)); };
 
             const warningDebts = useMemo(() => {
                 const oneDayMs = 1000 * 3600 * 24; const now = Date.now();
@@ -1648,6 +1700,7 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                         updatedAt:       new Date().toISOString()
                     });
                     setCloudStatus(`☁️ 已於 ${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} 上傳到雲端。`);
+                    setLastSyncTime(Date.now());
                 } catch (e) { setCloudStatus(`❌ 上傳失敗：${e.message}`); } finally { if (!silent) setCloudBusy(false); }
             };
 
@@ -1713,9 +1766,12 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                 <span className="rpg-clock-label text-xs font-bold">Today</span>
                                 <span className="rpg-clock text-lg font-mono font-bold leading-none">{currentTime.toLocaleTimeString('zh-TW', {hour12:false, hour:'2-digit', minute:'2-digit'})}</span>
                             </div>
-                            <button onClick={() => setShowCloudModal(true)} className="rpg-icon-btn border px-3 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="雲端同步">
+                            <button onClick={() => setShowCloudModal(true)} className="rpg-icon-btn border px-3 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title={cloudUser ? `雲端同步 - ${formatSyncAgo()}` : '雲端同步'}>
                                 {cloudUser && cloudUser.photoURL ? <img src={cloudUser.photoURL} alt="" className="w-5 h-5 rounded-full" /> : <Icon component={Icons.Cloud} size={18} />}
-                                <span className="hidden sm:inline">{cloudUser ? '已連雲端' : '雲端'}</span>
+                                <span className="hidden sm:flex flex-col items-start leading-tight">
+                                    <span>{cloudUser ? '已連雲端' : '雲端'}</span>
+                                    {cloudUser && <span className="text-[9px] font-normal opacity-70">{formatSyncAgo()}</span>}
+                                </span>
                             </button>
                             <button onClick={() => setShowSettingsModal(true)} className="rpg-icon-btn border px-3 py-2 rounded-xl transition-colors flex items-center gap-2 font-bold text-sm" title="模組設定">
                                 <Icon component={Icons.Settings} size={18} />
@@ -1734,7 +1790,7 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                     {/* 懸浮音量標準 (可拖曳) */}
                     {moduleConfig.volumeWidget && (
                     <div 
-                        className={`fixed z-30 flex flex-col gap-2 transition-all duration-75 ${volPos ? '' : 'right-0 md:right-4 top-24'}`}
+                        className={`fixed z-30 flex flex-col gap-2 transition-all duration-75 ${volPos ? '' : 'right-2 md:right-4 top-24'}`}
                         style={volPos ? { left: volPos.left, top: volPos.top } : {}}
                     >
                         <div className={`rpg-vol-widget border-2 ${currentVolConfig.borderColor} shadow-xl rounded-2xl p-3 flex flex-col items-center gap-3 w-16 md:w-20 transition-all relative group`}>
@@ -1823,8 +1879,9 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                         {homeworks.map((hw, hIndex) => {
                                             const hasTitle = hw.title.trim() !== "";
                                             return (
-                                                <div key={hIndex} className="p-3 flex flex-col h-full bg-white hover:bg-slate-50/50 transition-colors">
+                                                <div key={hw.id} draggable onDragStart={() => setDraggedHwIndex(hIndex)} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (draggedHwIndex !== null) { reorderHomeworkColumn(draggedHwIndex, hIndex); setDraggedHwIndex(null); } }} onDragEnd={() => setDraggedHwIndex(null)} className={`p-3 flex flex-col h-full bg-white hover:bg-slate-50/50 transition-colors ${draggedHwIndex === hIndex ? 'opacity-40' : ''}`}>
                                                     <div className="flex items-center gap-2 mb-3">
+                                                        <span className="text-slate-300 hover:text-indigo-400 cursor-grab active:cursor-grabbing" title="拖曳調整順序"><Icon component={Icons.Move} size={14} /></span>
                                                         <span className="bg-indigo-100 text-indigo-600 text-xs font-bold px-2 py-1 rounded">#{hIndex+1}</span>
                                                         <input type="text" placeholder="輸入作業名稱開啟" value={hw.title} onChange={(e) => updateHomeworkTitle(hIndex, e.target.value)} className="flex-1 min-w-0 bg-transparent font-bold border-b border-dashed border-slate-300 focus:border-indigo-500 outline-none text-sm" />
                                                         <div className="flex gap-1 ml-auto shrink-0">
@@ -1869,19 +1926,27 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                         </div>
                                     </div>
                                     <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 bg-slate-50/50">
-                                        {selfReflections.filter(sr => !sr.isCompleted).map(sr => (
-                                            <div key={sr.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                                                <div className="flex flex-col">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className="bg-slate-200 text-slate-600 text-xs px-1.5 py-0.5 rounded font-bold">{sr.studentId}號</span>
-                                                        <span className="font-bold text-slate-800">{sr.studentName}</span>
-                                                        <span className="text-[10px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">累計第 {sr.count} 張</span>
+                                        {Object.keys(groupedReflections).sort((a,b) => Number(a) - Number(b)).map(sId => {
+                                            const info = groupedReflections[sId];
+                                            return info.items.map((sr, i) => (
+                                                <div key={sr.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="bg-slate-200 text-slate-600 text-xs px-1.5 py-0.5 rounded font-bold">{sr.studentId}號</span>
+                                                            <span className="font-bold text-slate-800">{sr.studentName}</span>
+                                                            <span className="text-[10px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200">累計第 {sr.count} 張</span>
+                                                        </div>
+                                                        <div className="text-xs font-bold text-slate-400">{sr.date} 紀錄</div>
                                                     </div>
-                                                    <div className="text-xs font-bold text-slate-400">{sr.date} 紀錄</div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        {i === 0 && info.items.length > 1 && (
+                                                            <button onClick={() => { if(confirm(`確認 ${sr.studentName} 已全部寫完自述單？（共 ${info.items.length} 張）`)) completeAllReflectionsForStudent(Number(sId)); }} className="text-[10px] font-black text-emerald-600 hover:text-white hover:bg-emerald-500 border border-emerald-200 px-2 py-0.5 rounded-full transition-all">全部完成</button>
+                                                        )}
+                                                        <button onClick={() => { if(confirm(`確認 ${sr.studentName} 已寫完自述單？`)) completeSelfReflection(sr.id) }} className="bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all">完成</button>
+                                                    </div>
                                                 </div>
-                                                <button onClick={() => { if(confirm(`確認 ${sr.studentName} 已寫完自述單？`)) completeSelfReflection(sr.id) }} className="bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all shrink-0">完成</button>
-                                            </div>
-                                        ))}
+                                            ));
+                                        })}
                                         {selfReflections.filter(sr => !sr.isCompleted).length === 0 && (
                                             <div className="text-sm text-slate-400 w-full col-span-full py-4 font-bold flex flex-col items-center justify-center gap-2">
                                                 <div className="bg-slate-100 p-3 rounded-full text-slate-300"><Icon component={Icons.Sparkles} size={24}/></div>
@@ -1937,7 +2002,10 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                     <div className="bg-white rounded-3xl shadow-sm border border-orange-200 overflow-hidden">
                                         <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center justify-between text-orange-800 font-bold">
                                             <div className="flex items-center gap-2"><Icon component={Icons.ClipboardList} size={20} /> 待補作業清單 (共 {outstandingHomeworks.length} 項)</div>
-                                            <button onClick={() => { setDebtMsgStudentId(Object.keys(groupedDebts).sort((a,b)=>Number(a)-Number(b))[0] || null); setDebtMsgCopied(false); setShowDebtMsgModal(true); }} className="flex items-center gap-1 text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 font-bold shadow-sm whitespace-nowrap"><Icon component={Icons.FileText} size={14}/> 整理清單</button>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={exportDebtsToExcel} className="flex items-center gap-1 text-xs bg-white border border-orange-200 text-orange-700 px-3 py-1.5 rounded-lg hover:bg-orange-100 font-bold shadow-sm whitespace-nowrap"><Icon component={Icons.Download} size={14}/> 匯出 CSV</button>
+                                                <button onClick={() => { setDebtMsgStudentId(Object.keys(groupedDebts).sort((a,b)=>Number(a)-Number(b))[0] || null); setDebtMsgCopied(false); setShowDebtMsgModal(true); }} className="flex items-center gap-1 text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 font-bold shadow-sm whitespace-nowrap"><Icon component={Icons.FileText} size={14}/> 整理清單</button>
+                                            </div>
                                         </div>
                                         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                                             {Object.keys(groupedDebts).sort((a,b) => Number(a) - Number(b)).map(sId => {
@@ -1948,6 +2016,9 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                                             <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-md font-bold">{sId}號</span>
                                                             <span className="font-bold text-slate-700">{studentInfo.studentName}</span>
                                                             <span className="ml-auto text-xs font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">欠 {studentInfo.debts.length} 項</span>
+                                                            {studentInfo.debts.length > 1 && (
+                                                                <button onClick={() => { if(confirm(`確認 ${studentInfo.studentName} 已全部補交完成？（共 ${studentInfo.debts.length} 項）`)) clearAllDebtsForStudent(Number(sId)); }} className="text-[10px] font-black text-emerald-600 hover:text-white hover:bg-emerald-500 border border-emerald-200 px-2 py-0.5 rounded-full transition-all shrink-0">全部補交</button>
+                                                            )}
                                                         </div>
                                                         <div className="flex flex-col p-2 gap-2 bg-slate-50 flex-1">
                                                             {studentInfo.debts.map(debt => (
@@ -2720,6 +2791,12 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                             <input type="text" placeholder="注意事項（給 AI 的批改重點）" value={curTopic.note || ''} onChange={e => updateEssayTopicNote(curTopic.id, e.target.value)} className="flex-1 min-w-0 p-2 border border-amber-200 rounded-xl bg-amber-50 focus:border-amber-400 outline-none text-sm placeholder-amber-300" />
                                             {topicResults.length > 0 && (
                                                 <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5">
+                                                        <span className="text-xs text-slate-500 whitespace-nowrap">欄數</span>
+                                                        <select value={printColumns} onChange={e => setPrintColumns(Number(e.target.value))} className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer">
+                                                            {[1,2,3,4].map(c => <option key={c} value={c}>{c}欄</option>)}
+                                                        </select>
+                                                    </div>
                                                     <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5">
                                                         <span className="text-xs text-slate-500 whitespace-nowrap">字級</span>
                                                         <select value={printFontSize} onChange={e => setPrintFontSize(Number(e.target.value))} className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer">
