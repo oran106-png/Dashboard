@@ -390,7 +390,8 @@
             'class502_score_history_v1', 'class502_rewards_v2', 'class502_behavior_records_v1',
             'class502_module_config_v1', 'class502_pet_names_v1', 'class502_pet_assignments_v1', 'class502_groups_v1',
             'class502_board_heading_v1', 'class502_board_notes_v1', 'class502_last_settlement_date',
-            'class502_essays_v1', 'class502_attendance_v1'
+            'class502_essays_v1', 'class502_attendance_v1',
+            'class502_grade_subjects_v1', 'class502_grade_scores_v1', 'class502_helper_records_v1'
         ];
         // 內建的 Firebase 設定（ZheTeacher 專案，2026-06-07 由 Claude 代為建立）
         const DEFAULT_FIREBASE_CONFIG = JSON.stringify({
@@ -437,7 +438,8 @@
             volumeWidget: true, quickTools: true, timer: true, homework: true, 
             reflection: true, freeStudents: true, warningDebts: true, outstandingDebts: true,
             tabExam: true, tabSeats: true, tabScore: true, tabRedeem: true, tabRecords: true,
-            tabPets: true, tabGroups: true, tabBoard: true, tabQR: true, tabEssay: true, tabAttendance: true
+            tabPets: true, tabGroups: true, tabBoard: true, tabQR: true, tabEssay: true, tabAttendance: true,
+            tabGrades: true, tabHelpers: true
         };
 
         const ATTENDANCE_TYPES = [
@@ -553,6 +555,13 @@
             const [savedGroups, setSavedGroups] = useState([]);
             const [attendanceRecords, setAttendanceRecords] = useState([]);
             const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
+            const [gradeSubjects, setGradeSubjects] = useState(['國語', '數學', '社會', '自然', '英語']);
+            const [gradeScores, setGradeScores] = useState({});
+            const [currentGradeSubject, setCurrentGradeSubject] = useState(null);
+            const [newGradeSubjectName, setNewGradeSubjectName] = useState('');
+            const [helperRecords, setHelperRecords] = useState([]);
+            const [selectedHelperIds, setSelectedHelperIds] = useState([]);
+            const [helperWeekLabel, setHelperWeekLabel] = useState('');
             const [groupsCopied, setGroupsCopied] = useState(false);
             // 互動黑板
             const [boardHeading, setBoardHeading] = useState("今日學習目標");
@@ -791,6 +800,9 @@
                 setPetAssignments(savedAssignments);
                 setSavedGroups(load('class502_groups_v1', []));
                 setAttendanceRecords(load('class502_attendance_v1', []));
+                setGradeSubjects(load('class502_grade_subjects_v1', ['國語', '數學', '社會', '自然', '英語']));
+                setGradeScores(load('class502_grade_scores_v1', {}));
+                setHelperRecords(load('class502_helper_records_v1', []));
                 setBoardHeading(localStorage.getItem('class502_board_heading_v1') || "今日學習目標");
                 setBoardNotes(load('class502_board_notes_v1', []));
 
@@ -855,7 +867,7 @@
                     'exam': 'tabExam', 'seats': 'tabSeats', 'score': 'tabScore',
                     'redeem': 'tabRedeem', 'records': 'tabRecords',
                     'pets': 'tabPets', 'groups': 'tabGroups', 'board': 'tabBoard', 'qr': 'tabQR', 'essay': 'tabEssay',
-                    'attendance': 'tabAttendance'
+                    'attendance': 'tabAttendance', 'grades': 'tabGrades', 'helpers': 'tabHelpers'
                 };
                 const activeKey = tabKeyMap[currentTab];
                 if (activeKey && moduleConfig[activeKey] === false) {
@@ -911,6 +923,9 @@
 
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_groups_v1', JSON.stringify(savedGroups)); }, [savedGroups, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_attendance_v1', JSON.stringify(attendanceRecords)); }, [attendanceRecords, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_grade_subjects_v1', JSON.stringify(gradeSubjects)); }, [gradeSubjects, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_grade_scores_v1', JSON.stringify(gradeScores)); }, [gradeScores, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_helper_records_v1', JSON.stringify(helperRecords)); }, [helperRecords, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_heading_v1', boardHeading); }, [boardHeading, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_notes_v1', JSON.stringify(boardNotes)); }, [boardNotes, isLoaded]);
 
@@ -1034,6 +1049,100 @@
                 link2.click();
                 document.body.removeChild(link2);
             };
+
+            const addGradeSubject = () => {
+                const name = newGradeSubjectName.trim();
+                if (!name) return;
+                if (gradeSubjects.includes(name)) { alert('這個科目已經存在。'); return; }
+                setGradeSubjects(prev => [...prev, name]);
+                setCurrentGradeSubject(name);
+                setNewGradeSubjectName('');
+            };
+
+            const deleteGradeSubject = (subject) => {
+                if (!confirm(`確定刪除「${subject}」這個科目？已輸入的成績會一併清除。`)) return;
+                setGradeSubjects(prev => prev.filter(s => s !== subject));
+                if (currentGradeSubject === subject) setCurrentGradeSubject(null);
+            };
+
+            const updateGradeScore = (studentId, subject, category, rawValue) => {
+                const value = rawValue === '' ? null : Math.max(0, Math.min(100, Number(rawValue)));
+                setGradeScores(prev => {
+                    const next = { ...prev };
+                    next[studentId] = { ...(next[studentId] || {}) };
+                    next[studentId][subject] = { ...(next[studentId][subject] || {}), [category]: value };
+                    return next;
+                });
+            };
+
+            const computeSubjectAverage = (studentId, subject) => {
+                const rec = gradeScores[studentId] && gradeScores[studentId][subject];
+                if (!rec) return null;
+                const vals = ['regular', 'homework', 'exam'].map(k => rec[k]).filter(v => v !== null && v !== undefined && v !== '');
+                if (!vals.length) return null;
+                return Math.round((vals.reduce((a, b) => a + Number(b), 0) / vals.length) * 10) / 10;
+            };
+
+            const computeOverallAverage = (studentId) => {
+                const subjectAverages = gradeSubjects.map(subj => computeSubjectAverage(studentId, subj)).filter(v => v !== null);
+                if (!subjectAverages.length) return null;
+                return Math.round((subjectAverages.reduce((a, b) => a + b, 0) / subjectAverages.length) * 10) / 10;
+            };
+
+            const exportGrades = () => {
+                let csvContent = "座號,姓名," + gradeSubjects.flatMap(s => [`${s}-平時`, `${s}-作業`, `${s}-段考`, `${s}-平均`]).join(',') + ",總平均\n";
+                studentData.forEach(s => {
+                    const row = [s.id, s.name];
+                    gradeSubjects.forEach(subj => {
+                        const rec = (gradeScores[s.id] && gradeScores[s.id][subj]) || {};
+                        row.push(rec.regular ?? '', rec.homework ?? '', rec.exam ?? '', computeSubjectAverage(s.id, subj) ?? '');
+                    });
+                    row.push(computeOverallAverage(s.id) ?? '');
+                    csvContent += row.join(',') + '\n';
+                });
+                const bom3 = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                const blob3 = new Blob([bom3, csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url3 = URL.createObjectURL(blob3);
+                const link3 = document.createElement("a");
+                link3.setAttribute("href", url3);
+                link3.setAttribute("download", `502班_學業成績_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '')}.csv`);
+                document.body.appendChild(link3);
+                link3.click();
+                document.body.removeChild(link3);
+            };
+
+            const toggleHelperSelection = (studentId) => {
+                setSelectedHelperIds(prev => prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]);
+            };
+
+            const suggestNextHelpers = () => {
+                const allPast = helperRecords.flatMap(r => r.studentIds);
+                const lastId = allPast.length ? allPast[allPast.length - 1] : 0;
+                const ids = studentData.map(s => s.id);
+                const startIdx = (ids.indexOf(lastId) + 1) % ids.length;
+                const suggestion = [];
+                for (let i = 0; i < 4 && i < ids.length; i++) {
+                    suggestion.push(ids[(startIdx + i) % ids.length]);
+                }
+                setSelectedHelperIds(suggestion);
+            };
+
+            const confirmHelperWeek = () => {
+                if (!selectedHelperIds.length) { alert('請至少選擇一位小幫手。'); return; }
+                const label = helperWeekLabel.trim() || new Date().toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
+                setHelperRecords(prev => [{ id: Date.now(), weekLabel: label, studentIds: [...selectedHelperIds] }, ...prev]);
+                setSelectedHelperIds([]);
+                setHelperWeekLabel('');
+            };
+
+            const deleteHelperRecord = (id) => { if (confirm('確定刪除這筆小幫手紀錄？')) setHelperRecords(prev => prev.filter(r => r.id !== id)); };
+
+            const helperServeCounts = useMemo(() => {
+                const counts = {};
+                studentData.forEach(s => { counts[s.id] = 0; });
+                helperRecords.forEach(r => r.studentIds.forEach(id => { if (counts[id] !== undefined) counts[id]++; }));
+                return counts;
+            }, [helperRecords, studentData]);
 
             const moveIncompleteHomeworkToDebt = () => {
                 const additions = [];
@@ -1913,7 +2022,7 @@ h1{font-size:22px;margin-bottom:18px}
                 if (!isLoaded || !cloudUser || !cloudAutoSync) return;
                 const t = setTimeout(() => pushToCloud(true), 4000);
                 return () => clearTimeout(t);
-            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, examSchedule, petNames, savedGroups, attendanceRecords, boardNotes, boardHeading, moduleConfig, cloudUser, cloudAutoSync, isLoaded]);
+            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, examSchedule, petNames, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, boardNotes, boardHeading, moduleConfig, cloudUser, cloudAutoSync, isLoaded]);
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
@@ -1929,6 +2038,8 @@ h1{font-size:22px;margin-bottom:18px}
                 { id: 'essay', label: '作文批改', icon: Icons.BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabEssay },
                 { id: 'qr', label: '學生QR', icon: Icons.QrCode, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabQR },
                 { id: 'attendance', label: '出缺勤', icon: Icons.UserCheck, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabAttendance },
+                { id: 'grades', label: '學業成績', icon: Icons.BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabGrades },
+                { id: 'helpers', label: '小幫手輪值', icon: Icons.Users, color: 'text-blue-600', bg: 'bg-blue-50', visible: moduleConfig.tabHelpers },
             ].filter(tab => tab.visible !== false);
 
             return (
@@ -3258,6 +3369,146 @@ h1{font-size:22px;margin-bottom:18px}
                                 </div>
                             </div>
                         )}
+
+                        {currentTab === 'grades' && moduleConfig.tabGrades !== false && (
+                            <div className="animate-slide-up space-y-4">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><Icon component={Icons.BookOpen} className="text-indigo-600" /> 學業成績</h2>
+                                </div>
+
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-3">
+                                    <div className="flex gap-2 flex-wrap items-center">
+                                        <input type="text" placeholder="新增科目名稱" value={newGradeSubjectName} onChange={e => setNewGradeSubjectName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addGradeSubject()} className="w-40 p-2 border border-slate-200 rounded-lg bg-slate-50 focus:border-indigo-400 outline-none text-sm" />
+                                        <button onClick={addGradeSubject} className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 text-sm">＋ 新增科目</button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {gradeSubjects.map(subj => (
+                                            <div key={subj} className={`flex items-center gap-1 rounded-xl border-2 transition-all ${currentGradeSubject === subj ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
+                                                <button onClick={() => setCurrentGradeSubject(subj)} className="pl-4 py-2 font-bold text-sm">{subj}</button>
+                                                <button onClick={() => deleteGradeSubject(subj)} className={`pr-3 pl-1 py-2 text-xs ${currentGradeSubject === subj ? 'text-indigo-200 hover:text-white' : 'text-slate-300 hover:text-red-500'}`}>✕</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {!gradeSubjects.length && <p className="text-sm text-slate-400 text-center py-2">還沒有任何科目，先新增一個吧！</p>}
+                                </div>
+
+                                {currentGradeSubject && (
+                                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                                        <div className="p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-700">「{currentGradeSubject}」成績輸入</div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm text-left">
+                                                <thead>
+                                                    <tr className="border-b border-slate-100 text-slate-400">
+                                                        <th className="py-2 px-3 whitespace-nowrap">座號</th>
+                                                        <th className="py-2 px-3 whitespace-nowrap">姓名</th>
+                                                        <th className="py-2 px-2 text-center whitespace-nowrap">平時成績</th>
+                                                        <th className="py-2 px-2 text-center whitespace-nowrap">作業成績</th>
+                                                        <th className="py-2 px-2 text-center whitespace-nowrap">段考成績</th>
+                                                        <th className="py-2 px-3 text-center whitespace-nowrap">平均</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {studentData.map(s => {
+                                                        const rec = (gradeScores[s.id] && gradeScores[s.id][currentGradeSubject]) || {};
+                                                        const avg = computeSubjectAverage(s.id, currentGradeSubject);
+                                                        return (
+                                                            <tr key={s.id} className="border-b border-slate-50">
+                                                                <td className="py-1.5 px-3 text-slate-400 font-mono whitespace-nowrap">{s.id}</td>
+                                                                <td className="py-1.5 px-3 font-bold text-slate-700 whitespace-nowrap">{s.name}</td>
+                                                                <td className="py-1.5 px-2"><input type="number" min="0" max="100" value={rec.regular ?? ''} onChange={e => updateGradeScore(s.id, currentGradeSubject, 'regular', e.target.value)} className="w-16 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400" /></td>
+                                                                <td className="py-1.5 px-2"><input type="number" min="0" max="100" value={rec.homework ?? ''} onChange={e => updateGradeScore(s.id, currentGradeSubject, 'homework', e.target.value)} className="w-16 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400" /></td>
+                                                                <td className="py-1.5 px-2"><input type="number" min="0" max="100" value={rec.exam ?? ''} onChange={e => updateGradeScore(s.id, currentGradeSubject, 'exam', e.target.value)} className="w-16 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400" /></td>
+                                                                <td className="py-1.5 px-3 text-center font-bold text-indigo-600">{avg !== null ? avg : <span className="text-slate-200">-</span>}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="p-3 bg-slate-50 border-b border-slate-100 font-bold text-slate-600 text-sm">全科總覽</div>
+                                    <div className="p-3 flex justify-start">
+                                        <button onClick={exportGrades} className="flex items-center gap-1 text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold shadow-sm"><Icon component={Icons.Download} size={14}/> 匯出成績單</button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-slate-400">
+                                                    <th className="py-2 px-3 whitespace-nowrap">座號</th>
+                                                    <th className="py-2 px-3 whitespace-nowrap">姓名</th>
+                                                    {gradeSubjects.map(subj => <th key={subj} className="py-2 px-2 text-center whitespace-nowrap">{subj}</th>)}
+                                                    <th className="py-2 px-3 text-center whitespace-nowrap">總平均</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {studentData.map(s => {
+                                                    const overall = computeOverallAverage(s.id);
+                                                    return (
+                                                        <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                            <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">{s.id}</td>
+                                                            <td className="py-2 px-3 font-bold text-slate-700 whitespace-nowrap">{s.name}</td>
+                                                            {gradeSubjects.map(subj => {
+                                                                const a = computeSubjectAverage(s.id, subj);
+                                                                return <td key={subj} className="py-2 px-2 text-center">{a !== null ? a : <span className="text-slate-200">-</span>}</td>;
+                                                            })}
+                                                            <td className="py-2 px-3 text-center font-bold text-indigo-600">{overall !== null ? overall : <span className="text-slate-200">-</span>}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {currentTab === 'helpers' && moduleConfig.tabHelpers !== false && (
+                            <div className="animate-slide-up space-y-4">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-2xl font-bold text-slate-700 flex items-center gap-2"><Icon component={Icons.Users} className="text-cyan-600" /> 小幫手輪值</h2>
+                                </div>
+
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-3">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <input type="text" placeholder="週次標籤（例如 7/21-7/25，留空用今天日期）" value={helperWeekLabel} onChange={e => setHelperWeekLabel(e.target.value)} className="flex-1 min-w-[180px] p-2 border border-slate-200 rounded-lg bg-slate-50 focus:border-cyan-400 outline-none text-sm" />
+                                        <button onClick={suggestNextHelpers} className="px-3 py-2 bg-white border border-cyan-200 text-cyan-700 font-bold rounded-lg hover:bg-cyan-50 text-sm">建議下一輪（按號碼）</button>
+                                        <button onClick={confirmHelperWeek} className="px-4 py-2 bg-cyan-600 text-white font-bold rounded-lg hover:bg-cyan-700 text-sm shadow-sm">確認本週小幫手（已選 {selectedHelperIds.length} 人）</button>
+                                    </div>
+                                    <div className="text-xs text-slate-400">點學生卡片可以勾選/取消（例如遇到當週導護生要跳過，取消勾選再改選別人）</div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                                        {studentData.map(s => {
+                                            const selected = selectedHelperIds.includes(s.id);
+                                            return (
+                                                <button key={s.id} onClick={() => toggleHelperSelection(s.id)} className={`p-2 rounded-xl border-2 text-center transition-all ${selected ? 'border-cyan-500 bg-cyan-50 shadow-md' : 'border-slate-200 bg-white hover:border-cyan-300'}`}>
+                                                    <div className="text-xs font-bold text-slate-400">{s.id}號</div>
+                                                    <div className="text-sm font-bold text-slate-700 truncate">{s.name}</div>
+                                                    <div className="text-[10px] text-slate-400">已當 {helperServeCounts[s.id] || 0} 次</div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                                    <div className="p-3 bg-slate-50 border-b border-slate-100 font-bold text-slate-600 text-sm">歷史紀錄</div>
+                                    <div className="p-4 space-y-2">
+                                        {helperRecords.length === 0 && <div className="text-sm text-slate-400 text-center py-4">還沒有任何小幫手紀錄。</div>}
+                                        {helperRecords.map(r => (
+                                            <div key={r.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl p-3 gap-2">
+                                                <div className="min-w-0">
+                                                    <span className="font-bold text-slate-700">{r.weekLabel}</span>
+                                                    <span className="text-sm text-slate-500 ml-2">{r.studentIds.map(id => { const stu = studentData.find(x => x.id === id); return stu ? `${stu.id}號${stu.name}` : id; }).join('、')}</span>
+                                                </div>
+                                                <button onClick={() => deleteHelperRecord(r.id)} className="text-slate-300 hover:text-red-500 shrink-0"><Icon component={Icons.Trash2} size={16}/></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </main>
 
                     {}
@@ -3546,7 +3797,9 @@ h1{font-size:22px;margin-bottom:18px}
                                                 { key: 'tabBoard', label: '互動黑板' },
                                                 { key: 'tabQR', label: '學生QR' },
                                                 { key: 'tabEssay', label: '作文批改' },
-                                                { key: 'tabAttendance', label: '出缺勤' }
+                                                { key: 'tabAttendance', label: '出缺勤' },
+                                                { key: 'tabGrades', label: '學業成績' },
+                                                { key: 'tabHelpers', label: '小幫手輪值' }
                                             ].map(mod => (
                                                 <label key={mod.key} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${moduleConfig[mod.key] !== false ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                                                     <input type="checkbox" checked={moduleConfig[mod.key] !== false} onChange={(e) => setModuleConfig({...moduleConfig, [mod.key]: e.target.checked})} className="w-5 h-5 accent-indigo-600 rounded cursor-pointer" />
