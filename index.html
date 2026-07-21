@@ -905,6 +905,34 @@
             const deleteHomeworkColumn = (hi) => { if (confirm('確定刪除此作業欄位？')) setHomeworks(p => p.filter((_, i) => i !== hi)); };
             const clearDebt = (id) => { setOutstandingHomeworks(prev => prev.filter(d => d.id !== id)); };
 
+            const moveIncompleteHomeworkToDebt = () => {
+                const additions = [];
+                homeworks.forEach(hw => {
+                    if (!hw.title.trim()) return;
+                    hw.status.forEach((status, idx) => {
+                        if (status === 0 || status === 1) {
+                            const student = studentData[idx];
+                            if (!student) return;
+                            const hwTitle = hw.title + (status === 0 ? ' (缺交)' : ' (未訂正)');
+                            const exists = outstandingHomeworks.some(d => d.studentId === student.id && d.hwTitle === hwTitle);
+                            if (!exists) {
+                                additions.push({
+                                    id: Date.now() + Math.random(),
+                                    studentId: student.id,
+                                    studentName: student.name,
+                                    hwTitle,
+                                    date: new Date().toLocaleDateString('zh-TW', {month:'numeric', day:'numeric'}),
+                                    timestamp: Date.now()
+                                });
+                            }
+                        }
+                    });
+                });
+                if (!additions.length) { alert('目前作業區沒有可加入待補清單的未完成項目（或都已在清單中）。'); return; }
+                if (!confirm(`確定要將 ${additions.length} 筆未完成作業加入待補清單嗎？`)) return;
+                setOutstandingHomeworks(prev => [...prev, ...additions]);
+            };
+
             const clearAllPets = async () => {
                 if (!confirm('確定清空全班所有寵物？此動作無法復原，清空後需重新推送才會同步學生頁。')) return;
                 setPetAssignments({});
@@ -1780,6 +1808,9 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                                             <h2 className="font-bold text-indigo-800 flex items-center gap-2"><Icon component={Icons.BookOpen} size={20} /> 作業繳交狀況</h2>
                                             <button onClick={addHomeworkColumn} className="flex items-center gap-1 bg-white border border-indigo-200 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-indigo-100 shadow-sm transition-colors">
                                                 <Icon component={Icons.Plus} size={14}/> 新增作業欄
+                                            </button>
+                                            <button onClick={moveIncompleteHomeworkToDebt} className="flex items-center gap-1 bg-orange-50 border border-orange-200 text-orange-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-orange-100 shadow-sm transition-colors">
+                                                <Icon component={Icons.ClipboardList} size={14}/> 手動加入待補清單
                                             </button>
                                         </div>
                                         <div className="flex flex-wrap gap-3 text-xs font-bold bg-white px-3 py-1.5 rounded-full shadow-sm">
