@@ -2741,6 +2741,11 @@
                 return counts;
             }, [helperRecords, studentData]);
 
+            const currentHelpers = useMemo(() => {
+                const ids = helperRecords[0]?.studentIds || [];
+                return ids.map(id => studentData.find(s => s.id === id)).filter(Boolean);
+            }, [helperRecords, studentData]);
+
             const moveIncompleteHomeworkToDebt = () => {
                 const additions = [];
                 homeworks.forEach(hw => {
@@ -3718,8 +3723,8 @@ h1{font-size:22px;margin-bottom:18px}
                                 )}
 
                                 {moduleConfig.timer && (
-                                <div className="w-full max-w-4xl mx-auto">
-                                    <div className={`p-6 rounded-3xl shadow-sm border-2 transition-all duration-300 flex flex-col justify-between ${isTimeUp ? 'bg-red-50 border-red-400 animate-pulse-slow' : 'bg-white border-slate-100'}`}>
+                                <div className="w-full max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+                                    <div className={`lg:col-span-2 p-6 rounded-3xl shadow-sm border-2 transition-all duration-300 flex flex-col justify-between ${isTimeUp ? 'bg-red-50 border-red-400 animate-pulse-slow' : 'bg-white border-slate-100'}`}>
                                         <div className="flex justify-between items-center mb-4">
                                             <div className="flex items-center gap-2 font-bold text-slate-500 text-lg"><Icon component={Icons.Timer} size={24} /> 倒數計時</div>
                                             <button onClick={() => setIsMuted(!isMuted)} className="text-slate-400 hover:text-blue-500 p-2 hover:bg-slate-50 rounded-full transition-colors">{isMuted ? <Icon component={Icons.BellOff} size={24}/> : <Icon component={Icons.Bell} size={24}/>}</button>
@@ -3742,6 +3747,27 @@ h1{font-size:22px;margin-bottom:18px}
                                             {[1, 3, 5, 10, 20, 30].map(m => <button key={m} onClick={() => setTimerDuration(m)} className="flex-1 py-3 text-sm md:text-base font-bold text-slate-500 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-xl border border-slate-200 transition-colors">{m}分</button>)}
                                         </div>
                                     </div>
+                                    {moduleConfig.tabHelpers !== false && (
+                                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 flex flex-col">
+                                        <div className="flex items-center gap-2 font-bold text-slate-500 text-sm mb-3">
+                                            <Icon component={Icons.Users} size={18} className="text-cyan-600" /> 本週小幫手
+                                        </div>
+                                        {currentHelpers.length > 0 ? (
+                                            <div className="flex-1 flex flex-col justify-center gap-2">
+                                                {helperRecords[0]?.weekLabel && <div className="text-xs text-slate-400 mb-1">{helperRecords[0].weekLabel}</div>}
+                                                {currentHelpers.map(s => (
+                                                    <div key={s.id} className="flex items-center gap-2 bg-cyan-50 border border-cyan-100 rounded-xl px-3 py-2">
+                                                        <span className="text-xs font-bold text-cyan-600 shrink-0">{s.id}號</span>
+                                                        <span className="text-sm font-bold text-slate-700 truncate">{s.name}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex items-center justify-center text-sm text-slate-400 text-center px-2">還沒安排本週小幫手</div>
+                                        )}
+                                        <button onClick={() => setCurrentTab('helpers')} className="mt-3 text-xs font-bold text-cyan-600 hover:text-cyan-700 self-start">前往設定 →</button>
+                                    </div>
+                                    )}
                                 </div>
                                 )}
 
