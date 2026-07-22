@@ -1332,6 +1332,8 @@
 [data-theme="dark"][data-theme="dark"][data-theme="dark"][data-theme="dark"] .border-slate-600 { border-color: #7C8CAE !important; }
 [data-theme="dark"][data-theme="dark"][data-theme="dark"][data-theme="dark"].bg-white { background-color: #131B2E !important; }
 [data-theme="dark"][data-theme="dark"][data-theme="dark"][data-theme="dark"] .bg-white { background-color: #131B2E !important; }
+[data-theme="dark"][data-theme="dark"][data-theme="dark"][data-theme="dark"].border-white { border-color: #131B2E !important; }
+[data-theme="dark"][data-theme="dark"][data-theme="dark"][data-theme="dark"] .border-white { border-color: #131B2E !important; }
 </style>
 <!-- THEME_CSS_END -->
 </head>
@@ -4807,7 +4809,7 @@ h1{font-size:22px;margin-bottom:18px}
 
                     {}
                     {/* Bottom Navigation */}
-                    <nav className="rpg-nav fixed bottom-0 left-0 right-0 px-6 py-3 flex justify-center gap-2 z-50 safe-area-bottom">
+                    <nav className="rpg-nav fixed bottom-0 left-0 right-0 px-6 py-3 flex justify-center gap-2 z-50 safe-area-bottom overflow-x-auto no-scrollbar">
                         {availableTabs.map(tab => (
                             <button
                                 key={tab.id}
