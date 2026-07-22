@@ -1557,7 +1557,7 @@
             'class502_board_heading_v1', 'class502_board_notes_v1', 'class502_last_settlement_date',
             'class502_essays_v1', 'class502_attendance_v1',
             'class502_grade_subjects_v1', 'class502_grade_scores_v1', 'class502_helper_records_v1',
-            'class502_ui_theme_v1'
+            'class502_ui_theme_v1', 'class502_student_traits_v1', 'class502_global_seat_rules_v1'
         ];
 
         const THEME_OPTIONS = [
@@ -1813,7 +1813,13 @@
             const applySeatLayout = (layoutId) => {
                 const layout = savedSeatLayouts.find(l => l.id === layoutId);
                 if (!layout) return;
-                if (confirm(`套用「${layout.name}」座位配置？目前的座位排列會被取代（未儲存的排列會遺失）。`)) setSeatPositions(layout.positions);
+                if (!confirm(`套用「${layout.name}」座位配置？目前的座位排列會被取代（未儲存的排列會遺失）。`)) return;
+                // 保險：如果存這組配置之後班級名單有變動，缺人的話補上預設座位，不要讓學生消失不見
+                const positions = { ...layout.positions };
+                const missingStudents = studentData.filter(s => !positions[s.id]);
+                missingStudents.forEach((s, i) => { positions[s.id] = { col: i % 6, row: Math.floor(i / 6) }; });
+                setSeatPositions(positions);
+                if (missingStudents.length > 0) alert(`這組配置沒有 ${missingStudents.map(s => s.name).join('、')} 的座位資料，已補上預設位置。`);
             };
             const deleteSeatLayout = (layoutId) => { if (confirm("確定刪除這組已儲存的座位配置？")) setSavedSeatLayouts(prev => prev.filter(l => l.id !== layoutId)); };
 
@@ -1888,10 +1894,19 @@
                     const parsedData = JSON.parse(responseText.replace(/```json/gi, '').replace(/```/g, '').trim());
                     if (Array.isArray(parsedData) && parsedData.length > 0) {
                         const newSeats = {};
-                        parsedData.forEach(p => { newSeats[p.id] = { col: p.col, row: p.row }; });
+                        parsedData.forEach(p => {
+                            const col = Math.max(0, Math.min(5, Number(p.col) || 0));
+                            const row = Math.max(0, Math.min(5, Number(p.row) || 0));
+                            newSeats[p.id] = { col, row };
+                        });
+                        // AI 回傳偶爾會漏掉學生或格式跑掉；別讓漏掉的人靜默消失，補上預設座位並明確告知老師
+                        const missingStudents = studentData.filter(s => !newSeats[s.id]);
+                        missingStudents.forEach((s, i) => { newSeats[s.id] = { col: i % 6, row: Math.floor(i / 6) }; });
                         setSeatPositions(newSeats);
-                        setAiResponse("✅ 座位已成功排列！");
-                        setTimeout(() => setShowAiSeating(false), 1500);
+                        setAiResponse(missingStudents.length > 0
+                            ? `⚠️ AI 排座完成，但漏掉了 ${missingStudents.length} 位學生（${missingStudents.map(s => s.name).join('、')}），已補上預設座位，請手動確認調整。`
+                            : "✅ 座位已成功排列！");
+                        setTimeout(() => setShowAiSeating(false), missingStudents.length > 0 ? 3500 : 1500);
                     } else setAiResponse("❌ 回傳格式錯誤。");
                 } catch (error) { setAiResponse(`❌ 錯誤：${error.message}`); } finally { setIsAiLoading(false); }
             };
@@ -1905,16 +1920,17 @@
                 const oneDayMs = 1000 * 3600 * 24;
 
                 let updatedExistingDebts = currentDebts.map(debt => {
-                    let ts = debt.timestamp || todayTime; 
+                    let ts = debt.timestamp || todayTime;
                     let daysOverdue = Math.floor((todayTime - ts) / oneDayMs);
-                    if (daysOverdue >= 2) {
+                    if (daysOverdue >= 2 && !debt.penalized) {
                         let sIdx = newStudentData.findIndex(s => s.id === debt.studentId);
                         if (sIdx > -1) {
                             newStudentData[sIdx].score = Math.max(0, newStudentData[sIdx].score - 1);
                             penaltyMsgs.push(`${newStudentData[sIdx].name} 拖欠 [${debt.hwTitle}] 已達 ${daysOverdue} 天，扣 1 分`);
                         }
+                        return { ...debt, timestamp: ts, penalized: true };
                     }
-                    return { ...debt, timestamp: ts }; 
+                    return { ...debt, timestamp: ts };
                 });
 
                 currentHw.forEach(hw => {
@@ -1934,7 +1950,8 @@
                     }
                 });
 
-                for (let i = 0; i < STUDENT_COUNT; i++) {
+                const settlementCount = Math.min(STUDENT_COUNT, newStudentData.length);
+                for (let i = 0; i < settlementCount; i++) {
                      const activeHomeworks = currentHw.filter(hw => hw.title.trim() !== "");
                      if (activeHomeworks.length > 0 && activeHomeworks.every(hw => hw.status[i] === 2)) {
                          newStudentData[i].score += 1;
@@ -1985,6 +2002,8 @@
                 if (savedSeats) setSeatPositions(savedSeats);
                 else setSeatPositions(generateDefaultSeats());
                 setSavedSeatLayouts(load('class502_seat_layouts_v1', []));
+                setStudentTraits(load('class502_student_traits_v1', {}));
+                setGlobalSeatRules(localStorage.getItem('class502_global_seat_rules_v1') || "");
                 
                 // 讀取設定檔，若有新屬性則用預設值補齊
                 const savedConfig = load('class502_module_config_v1', null);
@@ -2018,9 +2037,12 @@
                             fetch(BASE + 'class502_ext', { headers: { Authorization: `Bearer ${tk}` } }).then(r => r.json()).then(d => d.fields || {})
                         ]);
                         const extTime = new Date(fext.updatedAt?.stringValue || 0).getTime();
+                        const studentTime = new Date(f.updatedAt?.stringValue || 0).getTime();
                         const lastSync = parseInt(localStorage.getItem('class502_portal_sync_time') || '0');
                         const neverSynced = lastSync === 0;
-                        if (f.students?.arrayValue?.values) {
+                        // 跟作業/待補清單一樣需要時間戳記保護：不然剛結算完的扣分/加分
+                        // 會被還沒推上雲端的舊資料覆蓋掉（跟之前修過的待補清單被覆蓋是同一類問題）
+                        if (f.students?.arrayValue?.values && (studentTime > lastSync || neverSynced)) {
                             const sts = f.students.arrayValue.values.map(v => { const ff = v.mapValue.fields; return { id: parseInt(ff.id.integerValue), name: ff.name.stringValue, score: parseInt(ff.score.integerValue) }; });
                             localStorage.setItem('class502_student_data_v8', JSON.stringify(sts));
                             setStudentData(sts);
@@ -2076,6 +2098,8 @@
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_exam_schedule_v1', JSON.stringify(examSchedule)); }, [examSchedule, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_seats_v2', JSON.stringify(seatPositions)); }, [seatPositions, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_seat_layouts_v1', JSON.stringify(savedSeatLayouts)); }, [savedSeatLayouts, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_student_traits_v1', JSON.stringify(studentTraits)); }, [studentTraits, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_global_seat_rules_v1', globalSeatRules); }, [globalSeatRules, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_score_history_v1', JSON.stringify(scoreHistory)); }, [scoreHistory, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_rewards_v2', JSON.stringify(rewardsList)); }, [rewardsList, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_behavior_records_v1', JSON.stringify(behaviorRecords)); }, [behaviorRecords, isLoaded]);
@@ -2239,6 +2263,14 @@
             const deleteGradeSubject = (subject) => {
                 if (!confirm(`確定刪除「${subject}」這個科目？已輸入的成績會一併清除。`)) return;
                 setGradeSubjects(prev => prev.filter(s => s !== subject));
+                setGradeScores(prev => {
+                    const next = {};
+                    Object.keys(prev).forEach(studentId => {
+                        const { [subject]: _removed, ...rest } = prev[studentId] || {};
+                        next[studentId] = rest;
+                    });
+                    return next;
+                });
                 if (currentGradeSubject === subject) setCurrentGradeSubject(null);
             };
 
@@ -2267,7 +2299,8 @@
             };
 
             const exportGrades = () => {
-                let csvContent = "座號,姓名," + gradeSubjects.flatMap(s => [`${s}-平時`, `${s}-作業`, `${s}-段考`, `${s}-平均`]).join(',') + ",總平均\n";
+                const csvSafe = (v) => `"${String(v).replace(/"/g, '""')}"`;
+                let csvContent = "座號,姓名," + gradeSubjects.flatMap(s => [`${csvSafe(s + '-平時')}`, `${csvSafe(s + '-作業')}`, `${csvSafe(s + '-段考')}`, `${csvSafe(s + '-平均')}`]).join(',') + ",總平均\n";
                 studentData.forEach(s => {
                     const row = [s.id, s.name];
                     gradeSubjects.forEach(subj => {
@@ -2293,8 +2326,12 @@
             };
 
             const suggestNextHelpers = () => {
-                const allPast = helperRecords.flatMap(r => r.studentIds);
-                const lastId = allPast.length ? allPast[allPast.length - 1] : 0;
+                // helperRecords is prepended (newest first), so the most
+                // recent week's last-picked student is helperRecords[0]'s
+                // last id — not the last id across the whole flattened
+                // history, which would land on the OLDEST record instead.
+                const mostRecent = helperRecords[0]?.studentIds || [];
+                const lastId = mostRecent.length ? mostRecent[mostRecent.length - 1] : 0;
                 const ids = studentData.map(s => s.id);
                 const startIdx = (ids.indexOf(lastId) + 1) % ids.length;
                 const suggestion = [];
@@ -3199,7 +3236,7 @@ h1{font-size:22px;margin-bottom:18px}
                 if (!isLoaded || !cloudUser || !cloudAutoSync) return;
                 const t = setTimeout(() => pushToCloud(true), 4000);
                 return () => clearTimeout(t);
-            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, examSchedule, petNames, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, uiTheme, boardNotes, boardHeading, moduleConfig, cloudUser, cloudAutoSync, isLoaded]);
+            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, savedSeatLayouts, studentTraits, globalSeatRules, examSchedule, petNames, petAssignments, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, uiTheme, boardNotes, boardHeading, moduleConfig, classNameTitle, essayTopics, essayResults, cloudUser, cloudAutoSync, isLoaded]);
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
