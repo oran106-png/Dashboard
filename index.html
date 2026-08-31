@@ -1940,7 +1940,7 @@
             'class502_essays_v1', 'class502_attendance_v1',
             'class502_grade_subjects_v1', 'class502_grade_scores_v1', 'class502_helper_records_v1',
             'class502_ui_theme_v1', 'class502_student_traits_v1', 'class502_global_seat_rules_v1',
-            'class502_duties_v1', 'class502_calendar_v1'
+            'class502_duties_v1', 'class502_calendar_v1', 'class502_calendar_font_size_v1'
         ];
 
         const THEME_OPTIONS = [
@@ -2123,6 +2123,7 @@
             const [calendarViewDate, setCalendarViewDate] = useState(new Date());
             const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
             const [newCalendarEventText, setNewCalendarEventText] = useState('');
+            const [calendarFontSize, setCalendarFontSize] = useState(18);
             const [selectedHelperIds, setSelectedHelperIds] = useState([]);
             const [helperWeekLabel, setHelperWeekLabel] = useState('');
             const [groupsCopied, setGroupsCopied] = useState(false);
@@ -2386,6 +2387,7 @@
                 setHelperRecords(load('class502_helper_records_v1', []));
                 setClassDuties(load('class502_duties_v1', {}));
                 setCalendarData(load('class502_calendar_v1', {}));
+                setCalendarFontSize(parseInt(localStorage.getItem('class502_calendar_font_size_v1') || '18'));
                 setBoardHeading(localStorage.getItem('class502_board_heading_v1') || "今日學習目標");
                 setBoardNotes(load('class502_board_notes_v1', []));
 
@@ -2520,6 +2522,7 @@
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_helper_records_v1', JSON.stringify(helperRecords)); }, [helperRecords, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_duties_v1', JSON.stringify(classDuties)); }, [classDuties, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_calendar_v1', JSON.stringify(calendarData)); }, [calendarData, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_calendar_font_size_v1', String(calendarFontSize)); }, [calendarFontSize, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_heading_v1', boardHeading); }, [boardHeading, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_board_notes_v1', JSON.stringify(boardNotes)); }, [boardNotes, isLoaded]);
 
@@ -3697,7 +3700,7 @@ h1{font-size:22px;margin-bottom:18px}
                 if (!isLoaded || !cloudUser || !cloudAutoSync) return;
                 const t = setTimeout(() => pushToCloud(true), 4000);
                 return () => clearTimeout(t);
-            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, savedSeatLayouts, studentTraits, globalSeatRules, examSchedule, petNames, petAssignments, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, classDuties, calendarData, uiTheme, boardNotes, boardHeading, moduleConfig, classNameTitle, essayTopics, essayResults, cloudUser, cloudAutoSync, isLoaded]);
+            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, savedSeatLayouts, studentTraits, globalSeatRules, examSchedule, petNames, petAssignments, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, classDuties, calendarData, calendarFontSize, uiTheme, boardNotes, boardHeading, moduleConfig, classNameTitle, essayTopics, essayResults, cloudUser, cloudAutoSync, isLoaded]);
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
@@ -5301,16 +5304,21 @@ h1{font-size:22px;margin-bottom:18px}
                                                 標記為假日／國定假日
                                             </label>
                                         </div>
+                                        <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                                            <span className="text-xs font-bold text-slate-500 shrink-0">事項文字大小</span>
+                                            <input type="range" min="14" max="40" step="1" value={calendarFontSize} onChange={e => setCalendarFontSize(parseInt(e.target.value))} className="flex-1 accent-rose-600 cursor-pointer" />
+                                            <span className="font-mono font-bold text-rose-600 text-sm w-12 text-right shrink-0">{calendarFontSize}px</span>
+                                        </div>
                                         <div className="flex gap-2">
-                                            <input type="text" placeholder="輸入當天要做的事" value={newCalendarEventText} onChange={e => setNewCalendarEventText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCalendarEvent()} className="flex-1 p-2.5 border border-slate-200 rounded-lg bg-slate-50 focus:border-rose-400 outline-none text-base" />
-                                            <button onClick={addCalendarEvent} className="px-4 py-2.5 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 text-base">新增</button>
+                                            <input type="text" placeholder="輸入當天要做的事" value={newCalendarEventText} onChange={e => setNewCalendarEventText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCalendarEvent()} style={{ fontSize: `${calendarFontSize}px` }} className="flex-1 p-2.5 border border-slate-200 rounded-lg bg-slate-50 focus:border-rose-400 outline-none" />
+                                            <button onClick={addCalendarEvent} style={{ fontSize: `${calendarFontSize}px` }} className="px-4 py-2.5 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700">新增</button>
                                         </div>
                                         <div className="space-y-1.5">
-                                            {(!calendarData[selectedCalendarDate] || !calendarData[selectedCalendarDate].events || calendarData[selectedCalendarDate].events.length === 0) && <div className="text-base text-slate-400 text-center py-2">這天還沒有安排事項。</div>}
+                                            {(!calendarData[selectedCalendarDate] || !calendarData[selectedCalendarDate].events || calendarData[selectedCalendarDate].events.length === 0) && <div style={{ fontSize: `${calendarFontSize}px` }} className="text-slate-400 text-center py-2">這天還沒有安排事項。</div>}
                                             {((calendarData[selectedCalendarDate] && calendarData[selectedCalendarDate].events) || []).map((ev, idx) => (
                                                 <div key={idx} className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-4 py-3">
-                                                    <span className="text-lg text-slate-700">{ev}</span>
-                                                    <button onClick={() => deleteCalendarEvent(selectedCalendarDate, idx)} className="text-slate-300 hover:text-red-500 shrink-0"><Icon component={Icons.Trash2} size={18}/></button>
+                                                    <span style={{ fontSize: `${calendarFontSize}px` }} className="text-slate-700">{ev}</span>
+                                                    <button onClick={() => deleteCalendarEvent(selectedCalendarDate, idx)} className="text-slate-300 hover:text-red-500 shrink-0"><Icon component={Icons.Trash2} size={Math.round(calendarFontSize * 0.9)}/></button>
                                                 </div>
                                             ))}
                                         </div>
