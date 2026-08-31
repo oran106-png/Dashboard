@@ -5282,12 +5282,17 @@ h1{font-size:22px;margin-bottom:18px}
                                             const todayKey = dateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
                                             const isToday = cell.key === todayKey;
                                             const isSelected = selectedCalendarDate === cell.key;
+                                            const subPx = Math.max(9, Math.round(calendarFontSize * 0.55));
+                                            const badgePx = calendarFontSize + 14;
                                             return (
-                                                <button key={cell.key} onClick={() => setSelectedCalendarDate(cell.key)} className={`aspect-square border-b border-r border-slate-50 p-1.5 flex flex-col items-start gap-1 text-left transition-colors ${isSelected ? 'bg-rose-50 ring-2 ring-inset ring-rose-400' : info.holiday ? 'bg-red-50' : 'hover:bg-slate-50'}`}>
-                                                    <span className={`text-base md:text-lg font-bold ${isToday ? 'bg-rose-600 text-white rounded-full w-7 h-7 md:w-8 md:h-8 flex items-center justify-center' : info.holiday ? 'text-red-500' : cell.dow === 0 ? 'text-red-400' : cell.dow === 6 ? 'text-blue-400' : 'text-slate-600'}`}>{cell.day}</span>
-                                                    {info.holiday && <span className="text-[11px] md:text-xs text-red-500 font-bold leading-tight">假日</span>}
+                                                <button key={cell.key} onClick={() => setSelectedCalendarDate(cell.key)} className={`aspect-square min-h-[3.5rem] border-b border-r border-slate-50 p-1.5 flex flex-col items-start gap-1 text-left transition-colors overflow-hidden ${isSelected ? 'bg-rose-50 ring-2 ring-inset ring-rose-400' : info.holiday ? 'bg-red-50' : 'hover:bg-slate-50'}`}>
+                                                    <span
+                                                        style={isToday ? { fontSize: calendarFontSize, width: badgePx, height: badgePx } : { fontSize: calendarFontSize }}
+                                                        className={`font-bold ${isToday ? 'bg-rose-600 text-white rounded-full flex items-center justify-center shrink-0' : info.holiday ? 'text-red-500' : cell.dow === 0 ? 'text-red-400' : cell.dow === 6 ? 'text-blue-400' : 'text-slate-600'}`}
+                                                    >{cell.day}</span>
+                                                    {info.holiday && <span style={{ fontSize: subPx }} className="text-red-500 font-bold leading-tight">假日</span>}
                                                     {events.length > 0 && (
-                                                        <span className="text-[11px] md:text-xs text-slate-500 leading-tight truncate w-full">{events[0]}{events.length > 1 ? ` +${events.length - 1}` : ''}</span>
+                                                        <span style={{ fontSize: subPx }} className="text-slate-500 leading-tight truncate w-full">{events[0]}{events.length > 1 ? ` +${events.length - 1}` : ''}</span>
                                                     )}
                                                 </button>
                                             );
