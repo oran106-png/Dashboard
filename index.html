@@ -1938,7 +1938,7 @@
             'class502_module_config_v1', 'class502_pet_names_v1', 'class502_pet_assignments_v1', 'class502_groups_v1',
             'class502_board_heading_v1', 'class502_board_notes_v1', 'class502_last_settlement_date',
             'class502_essays_v1', 'class502_attendance_v1',
-            'class502_grade_subjects_v1', 'class502_grade_scores_v1', 'class502_helper_records_v1',
+            'class502_grade_subjects_v1', 'class502_grade_scores_v1', 'class502_grade_items_v1', 'class502_helper_records_v1',
             'class502_ui_theme_v1', 'class502_student_traits_v1', 'class502_global_seat_rules_v1',
             'class502_duties_v1', 'class502_calendar_v1', 'class502_calendar_font_size_v1'
         ];
@@ -2115,8 +2115,13 @@
             const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
             const [gradeSubjects, setGradeSubjects] = useState(['國語', '數學', '社會', '自然', '英語']);
             const [gradeScores, setGradeScores] = useState({});
+            // gradeItems: 每科底下「小考成績/上課表現/作業成績細項」的項目定義（名稱），實際分數存在 gradeScores[studentId][subject][category][itemId]
+            const [gradeItems, setGradeItems] = useState({}); // { [subject]: { quizzes: [{id,name}], classPerf: [{id,name}], homeworkItems: [{id,name}] } }
             const [currentGradeSubject, setCurrentGradeSubject] = useState(null);
             const [newGradeSubjectName, setNewGradeSubjectName] = useState('');
+            const [newQuizItemName, setNewQuizItemName] = useState('');
+            const [newClassPerfItemName, setNewClassPerfItemName] = useState('');
+            const [newHomeworkItemName, setNewHomeworkItemName] = useState('');
             const [helperRecords, setHelperRecords] = useState([]);
             const [classDuties, setClassDuties] = useState({}); // { [studentId]: { position, area, bonus } }
             const [calendarData, setCalendarData] = useState({}); // { "2026-08-31": { events: ["..."], holiday: false } }
@@ -2383,6 +2388,7 @@
                 setSavedGroups(load('class502_groups_v1', []));
                 setAttendanceRecords(load('class502_attendance_v1', []));
                 setGradeSubjects(load('class502_grade_subjects_v1', ['國語', '數學', '社會', '自然', '英語']));
+                setGradeItems(load('class502_grade_items_v1', {}));
                 setGradeScores(load('class502_grade_scores_v1', {}));
                 setHelperRecords(load('class502_helper_records_v1', []));
                 setClassDuties(load('class502_duties_v1', {}));
@@ -2518,6 +2524,63 @@
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_groups_v1', JSON.stringify(savedGroups)); }, [savedGroups, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_attendance_v1', JSON.stringify(attendanceRecords)); }, [attendanceRecords, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_grade_subjects_v1', JSON.stringify(gradeSubjects)); }, [gradeSubjects, isLoaded]);
+            useEffect(() => { if (isLoaded) localStorage.setItem('class502_grade_items_v1', JSON.stringify(gradeItems)); }, [gradeItems, isLoaded]);
+
+            // 搬遷：把舊版「平時成績/作業成績」單一數字，搬進新版的 小考成績/作業成績細項 結構，避免舊分數在平均裡消失。
+            // 不用「搬過一次就永久跳過」的旗標——目前雲端還沒有任何成績資料，若用旗標，
+            // 第一次沒東西可搬就會被判定「已完成」，之後不管哪一天雲端還原出舊格式資料都不會再搬。
+            // 改成每次 gradeScores 真的變動就重新掃一次；判斷本身是看 rec.quizzes 存不存在，
+            // 搬過的資料下次掃會直接跳過，不會重複搬、也不會卡死重算。
+            useEffect(() => {
+                if (!isLoaded) return;
+                const LEGACY_QUIZ_ID = 'legacy_regular';
+                const LEGACY_HW_ID = 'legacy_homework';
+                let needsMigration = false;
+                const legacyBySubject = {};
+                Object.keys(gradeScores).forEach(studentId => {
+                    Object.keys(gradeScores[studentId] || {}).forEach(subject => {
+                        const rec = gradeScores[studentId][subject];
+                        if (rec && typeof rec.regular === 'number' && !rec.quizzes) {
+                            needsMigration = true;
+                            legacyBySubject[subject] = { ...(legacyBySubject[subject] || {}), hasRegular: true };
+                        }
+                        if (rec && typeof rec.homework === 'number' && !rec.homeworkItems) {
+                            needsMigration = true;
+                            legacyBySubject[subject] = { ...(legacyBySubject[subject] || {}), hasHomework: true };
+                        }
+                    });
+                });
+                if (!needsMigration) return;
+
+                setGradeItems(prev => {
+                    const next = { ...prev };
+                    Object.keys(legacyBySubject).forEach(subject => {
+                        const cur = next[subject] || { quizzes: [], classPerf: [], homeworkItems: [] };
+                        const info = legacyBySubject[subject];
+                        const quizzes = (info.hasRegular && !(cur.quizzes || []).some(i => i.id === LEGACY_QUIZ_ID))
+                            ? [...(cur.quizzes || []), { id: LEGACY_QUIZ_ID, name: '小考(舊資料)' }] : (cur.quizzes || []);
+                        const homeworkItems = (info.hasHomework && !(cur.homeworkItems || []).some(i => i.id === LEGACY_HW_ID))
+                            ? [...(cur.homeworkItems || []), { id: LEGACY_HW_ID, name: '作業(舊資料)' }] : (cur.homeworkItems || []);
+                        next[subject] = { ...cur, quizzes, homeworkItems, classPerf: cur.classPerf || [] };
+                    });
+                    return next;
+                });
+
+                setGradeScores(prev => {
+                    const next = {};
+                    Object.keys(prev).forEach(studentId => {
+                        next[studentId] = {};
+                        Object.keys(prev[studentId] || {}).forEach(subject => {
+                            const rec = prev[studentId][subject];
+                            const newRec = { ...rec };
+                            if (typeof rec.regular === 'number' && !rec.quizzes) newRec.quizzes = { [LEGACY_QUIZ_ID]: rec.regular };
+                            if (typeof rec.homework === 'number' && !rec.homeworkItems) newRec.homeworkItems = { [LEGACY_HW_ID]: rec.homework };
+                            next[studentId][subject] = newRec;
+                        });
+                    });
+                    return next;
+                });
+            }, [gradeScores, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_grade_scores_v1', JSON.stringify(gradeScores)); }, [gradeScores, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_helper_records_v1', JSON.stringify(helperRecords)); }, [helperRecords, isLoaded]);
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_duties_v1', JSON.stringify(classDuties)); }, [classDuties, isLoaded]);
@@ -2667,9 +2730,14 @@
                     });
                     return next;
                 });
+                setGradeItems(prev => {
+                    const { [subject]: _removed, ...rest } = prev;
+                    return rest;
+                });
                 if (currentGradeSubject === subject) setCurrentGradeSubject(null);
             };
 
+            // 用於「段考成績」這種單一數字欄位
             const updateGradeScore = (studentId, subject, category, rawValue) => {
                 const value = rawValue === '' ? null : Math.max(0, Math.min(100, Number(rawValue)));
                 setGradeScores(prev => {
@@ -2680,13 +2748,81 @@
                 });
             };
 
-            const computeSubjectAverage = (studentId, subject) => {
-                const rec = gradeScores[studentId] && gradeScores[studentId][subject];
-                if (!rec) return null;
-                const vals = ['regular', 'homework', 'exam'].map(k => rec[k]).filter(v => v !== null && v !== undefined && v !== '');
+            // 新增一個「小考成績/上課表現/作業成績細項」的項目欄位（category: quizzes | classPerf | homeworkItems）
+            const addGradeItem = (subject, category, rawName) => {
+                const name = (rawName || '').trim();
+                if (!subject || !name) return;
+                const existing = (gradeItems[subject] && gradeItems[subject][category]) || [];
+                if (existing.some(it => it.name === name)) { alert('這個項目名稱已經存在。'); return; }
+                setGradeItems(prev => {
+                    const subjectItems = prev[subject] || { quizzes: [], classPerf: [], homeworkItems: [] };
+                    const list = subjectItems[category] || [];
+                    return { ...prev, [subject]: { ...subjectItems, [category]: [...list, { id: Date.now(), name }] } };
+                });
+            };
+
+            const deleteGradeItem = (subject, category, itemId) => {
+                if (!confirm('確定刪除這個項目？已輸入的分數會一併清除。')) return;
+                setGradeItems(prev => {
+                    const subjectItems = prev[subject] || { quizzes: [], classPerf: [], homeworkItems: [] };
+                    return { ...prev, [subject]: { ...subjectItems, [category]: (subjectItems[category] || []).filter(it => it.id !== itemId) } };
+                });
+                setGradeScores(prev => {
+                    const next = { ...prev };
+                    Object.keys(next).forEach(studentId => {
+                        const rec = next[studentId] && next[studentId][subject] && next[studentId][subject][category];
+                        if (rec && Object.prototype.hasOwnProperty.call(rec, itemId)) {
+                            const { [itemId]: _removed, ...restItems } = rec;
+                            next[studentId] = { ...next[studentId], [subject]: { ...next[studentId][subject], [category]: restItems } };
+                        }
+                    });
+                    return next;
+                });
+            };
+
+            const updateGradeItemScore = (studentId, subject, category, itemId, rawValue) => {
+                const value = rawValue === '' ? null : Math.max(0, Math.min(100, Number(rawValue)));
+                setGradeScores(prev => {
+                    const next = { ...prev };
+                    next[studentId] = { ...(next[studentId] || {}) };
+                    next[studentId][subject] = { ...(next[studentId][subject] || {}) };
+                    next[studentId][subject][category] = { ...(next[studentId][subject][category] || {}), [itemId]: value };
+                    return next;
+                });
+            };
+
+            // 一組分數（{itemId: score, ...}）的平均，忽略空值
+            const avgOf = (obj) => {
+                if (!obj) return null;
+                const vals = Object.values(obj).filter(v => v !== null && v !== undefined && v !== '');
                 if (!vals.length) return null;
                 return Math.round((vals.reduce((a, b) => a + Number(b), 0) / vals.length) * 10) / 10;
             };
+
+            // 單一項目類別（小考/上課表現/作業細項）的平均，給表格小計用
+            const computeCategoryAverage = (studentId, subject, category) => {
+                const rec = gradeScores[studentId] && gradeScores[studentId][subject] && gradeScores[studentId][subject][category];
+                return avgOf(rec);
+            };
+
+            // 平時成績 = 小考成績與上課表現的平均（兩者都有登分才各半，只有一項就用該項）
+            // 作業成績 = 所有作業細項的平均
+            // 科目平均 = 平時成績、作業成績、段考成績三者平均（缺項就跳過，維持跟原本一樣的邏輯）
+            const computeSubjectBreakdown = (studentId, subject) => {
+                const rec = gradeScores[studentId] && gradeScores[studentId][subject];
+                if (!rec) return { regularAvg: null, homeworkAvg: null, examVal: null, overall: null };
+                const quizAvg = avgOf(rec.quizzes);
+                const classAvg = avgOf(rec.classPerf);
+                const regularParts = [quizAvg, classAvg].filter(v => v !== null);
+                const regularAvg = regularParts.length ? Math.round((regularParts.reduce((a, b) => a + b, 0) / regularParts.length) * 10) / 10 : null;
+                const homeworkAvg = avgOf(rec.homeworkItems);
+                const examVal = (rec.exam !== null && rec.exam !== undefined && rec.exam !== '') ? Number(rec.exam) : null;
+                const parts = [regularAvg, homeworkAvg, examVal].filter(v => v !== null);
+                const overall = parts.length ? Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 10) / 10 : null;
+                return { regularAvg, homeworkAvg, examVal, overall };
+            };
+
+            const computeSubjectAverage = (studentId, subject) => computeSubjectBreakdown(studentId, subject).overall;
 
             const computeOverallAverage = (studentId) => {
                 const subjectAverages = gradeSubjects.map(subj => computeSubjectAverage(studentId, subj)).filter(v => v !== null);
@@ -2700,8 +2836,8 @@
                 studentData.forEach(s => {
                     const row = [s.id, s.name];
                     gradeSubjects.forEach(subj => {
-                        const rec = (gradeScores[s.id] && gradeScores[s.id][subj]) || {};
-                        row.push(rec.regular ?? '', rec.homework ?? '', rec.exam ?? '', computeSubjectAverage(s.id, subj) ?? '');
+                        const bd = computeSubjectBreakdown(s.id, subj);
+                        row.push(bd.regularAvg ?? '', bd.homeworkAvg ?? '', bd.examVal ?? '', bd.overall ?? '');
                     });
                     row.push(computeOverallAverage(s.id) ?? '');
                     csvContent += row.join(',') + '\n';
@@ -2715,6 +2851,59 @@
                 document.body.appendChild(link3);
                 link3.click();
                 document.body.removeChild(link3);
+            };
+
+            // 小考成績/上課表現/作業成績細項 共用的「動態欄位表格」區塊
+            const renderGradeItemSection = (category, label, newName, setNewName, colorClass) => {
+                const items = (gradeItems[currentGradeSubject] && gradeItems[currentGradeSubject][category]) || [];
+                const submit = () => { addGradeItem(currentGradeSubject, category, newName); setNewName(''); };
+                return (
+                    <div className="border-t border-slate-100 pt-3 mt-3 first:border-t-0 first:mt-0 first:pt-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <span className={`font-bold text-sm ${colorClass}`}>{label}</span>
+                            <input type="text" placeholder={`新增${label}項目名稱`} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} className="w-40 p-1.5 border border-slate-200 rounded-lg bg-slate-50 focus:border-indigo-400 outline-none text-xs" />
+                            <button onClick={submit} className="px-3 py-1.5 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-800 text-xs">＋ 新增項目</button>
+                        </div>
+                        {!items.length && <p className="text-xs text-slate-400 pb-2">還沒有{label}項目，先新增一個吧！</p>}
+                        {items.length > 0 && (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead>
+                                        <tr className="border-b border-slate-100 text-slate-400">
+                                            <th className="py-1.5 px-2 whitespace-nowrap">姓名</th>
+                                            {items.map(item => (
+                                                <th key={item.id} className="py-1.5 px-1 text-center whitespace-nowrap">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span className="truncate max-w-[6rem]">{item.name}</span>
+                                                        <button onClick={() => deleteGradeItem(currentGradeSubject, category, item.id)} className="text-slate-300 hover:text-red-500 shrink-0">✕</button>
+                                                    </div>
+                                                </th>
+                                            ))}
+                                            <th className="py-1.5 px-2 text-center whitespace-nowrap">平均</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {studentData.map(s => {
+                                            const rec = (gradeScores[s.id] && gradeScores[s.id][currentGradeSubject] && gradeScores[s.id][currentGradeSubject][category]) || {};
+                                            const avg = computeCategoryAverage(s.id, currentGradeSubject, category);
+                                            return (
+                                                <tr key={s.id} className="border-b border-slate-50">
+                                                    <td className="py-1 px-2 font-bold text-slate-700 whitespace-nowrap">{s.id}號 {s.name}</td>
+                                                    {items.map(item => (
+                                                        <td key={item.id} className="py-1 px-1">
+                                                            <input type="number" min="0" max="100" value={rec[item.id] ?? ''} onChange={e => updateGradeItemScore(s.id, currentGradeSubject, category, item.id, e.target.value)} className="w-14 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400 text-xs" />
+                                                        </td>
+                                                    ))}
+                                                    <td className="py-1 px-2 text-center font-bold text-indigo-500 text-xs">{avg !== null ? avg : <span className="text-slate-200">-</span>}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
             };
 
             const toggleHelperSelection = (studentId) => {
@@ -3700,7 +3889,7 @@ h1{font-size:22px;margin-bottom:18px}
                 if (!isLoaded || !cloudUser || !cloudAutoSync) return;
                 const t = setTimeout(() => pushToCloud(true), 4000);
                 return () => clearTimeout(t);
-            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, savedSeatLayouts, studentTraits, globalSeatRules, examSchedule, petNames, petAssignments, savedGroups, attendanceRecords, gradeSubjects, gradeScores, helperRecords, classDuties, calendarData, calendarFontSize, uiTheme, boardNotes, boardHeading, moduleConfig, classNameTitle, essayTopics, essayResults, cloudUser, cloudAutoSync, isLoaded]);
+            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, savedSeatLayouts, studentTraits, globalSeatRules, examSchedule, petNames, petAssignments, savedGroups, attendanceRecords, gradeSubjects, gradeScores, gradeItems, helperRecords, classDuties, calendarData, calendarFontSize, uiTheme, boardNotes, boardHeading, moduleConfig, classNameTitle, essayTopics, essayResults, cloudUser, cloudAutoSync, isLoaded]);
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
@@ -5096,35 +5285,66 @@ h1{font-size:22px;margin-bottom:18px}
                                 {currentGradeSubject && (
                                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                                         <div className="p-3 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-700">「{currentGradeSubject}」成績輸入</div>
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm text-left">
-                                                <thead>
-                                                    <tr className="border-b border-slate-100 text-slate-400">
-                                                        <th className="py-2 px-3 whitespace-nowrap">座號</th>
-                                                        <th className="py-2 px-3 whitespace-nowrap">姓名</th>
-                                                        <th className="py-2 px-2 text-center whitespace-nowrap">平時成績</th>
-                                                        <th className="py-2 px-2 text-center whitespace-nowrap">作業成績</th>
-                                                        <th className="py-2 px-2 text-center whitespace-nowrap">段考成績</th>
-                                                        <th className="py-2 px-3 text-center whitespace-nowrap">平均</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {studentData.map(s => {
-                                                        const rec = (gradeScores[s.id] && gradeScores[s.id][currentGradeSubject]) || {};
-                                                        const avg = computeSubjectAverage(s.id, currentGradeSubject);
-                                                        return (
-                                                            <tr key={s.id} className="border-b border-slate-50">
-                                                                <td className="py-1.5 px-3 text-slate-400 font-mono whitespace-nowrap">{s.id}</td>
-                                                                <td className="py-1.5 px-3 font-bold text-slate-700 whitespace-nowrap">{s.name}</td>
-                                                                <td className="py-1.5 px-2"><input type="number" min="0" max="100" value={rec.regular ?? ''} onChange={e => updateGradeScore(s.id, currentGradeSubject, 'regular', e.target.value)} className="w-16 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400" /></td>
-                                                                <td className="py-1.5 px-2"><input type="number" min="0" max="100" value={rec.homework ?? ''} onChange={e => updateGradeScore(s.id, currentGradeSubject, 'homework', e.target.value)} className="w-16 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400" /></td>
-                                                                <td className="py-1.5 px-2"><input type="number" min="0" max="100" value={rec.exam ?? ''} onChange={e => updateGradeScore(s.id, currentGradeSubject, 'exam', e.target.value)} className="w-16 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400" /></td>
-                                                                <td className="py-1.5 px-3 text-center font-bold text-indigo-600">{avg !== null ? avg : <span className="text-slate-200">-</span>}</td>
+                                        <div className="p-4">
+                                            {renderGradeItemSection('quizzes', '小考成績', newQuizItemName, setNewQuizItemName, 'text-amber-600')}
+                                            {renderGradeItemSection('classPerf', '上課表現', newClassPerfItemName, setNewClassPerfItemName, 'text-emerald-600')}
+                                            {renderGradeItemSection('homeworkItems', '作業成績細項', newHomeworkItemName, setNewHomeworkItemName, 'text-sky-600')}
+
+                                            <div className="border-t border-slate-100 pt-3 mt-3">
+                                                <div className="font-bold text-sm text-rose-600 mb-2">段考成績</div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead>
+                                                            <tr className="border-b border-slate-100 text-slate-400">
+                                                                <th className="py-1.5 px-2 whitespace-nowrap">姓名</th>
+                                                                <th className="py-1.5 px-2 text-center whitespace-nowrap">分數</th>
                                                             </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
+                                                        </thead>
+                                                        <tbody>
+                                                            {studentData.map(s => {
+                                                                const rec = (gradeScores[s.id] && gradeScores[s.id][currentGradeSubject]) || {};
+                                                                return (
+                                                                    <tr key={s.id} className="border-b border-slate-50">
+                                                                        <td className="py-1 px-2 font-bold text-slate-700 whitespace-nowrap">{s.id}號 {s.name}</td>
+                                                                        <td className="py-1 px-2"><input type="number" min="0" max="100" value={rec.exam ?? ''} onChange={e => updateGradeScore(s.id, currentGradeSubject, 'exam', e.target.value)} className="w-16 p-1 border border-slate-200 rounded text-center outline-none focus:border-indigo-400" /></td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            <div className="border-t border-slate-100 pt-3 mt-3">
+                                                <div className="font-bold text-sm text-slate-500 mb-2">「{currentGradeSubject}」科目小計</div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead>
+                                                            <tr className="border-b border-slate-100 text-slate-400">
+                                                                <th className="py-1.5 px-2 whitespace-nowrap">姓名</th>
+                                                                <th className="py-1.5 px-2 text-center whitespace-nowrap">平時成績</th>
+                                                                <th className="py-1.5 px-2 text-center whitespace-nowrap">作業成績</th>
+                                                                <th className="py-1.5 px-2 text-center whitespace-nowrap">段考成績</th>
+                                                                <th className="py-1.5 px-2 text-center whitespace-nowrap">平均</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {studentData.map(s => {
+                                                                const bd = computeSubjectBreakdown(s.id, currentGradeSubject);
+                                                                return (
+                                                                    <tr key={s.id} className="border-b border-slate-50">
+                                                                        <td className="py-1 px-2 font-bold text-slate-700 whitespace-nowrap">{s.id}號 {s.name}</td>
+                                                                        <td className="py-1 px-2 text-center">{bd.regularAvg ?? <span className="text-slate-200">-</span>}</td>
+                                                                        <td className="py-1 px-2 text-center">{bd.homeworkAvg ?? <span className="text-slate-200">-</span>}</td>
+                                                                        <td className="py-1 px-2 text-center">{bd.examVal ?? <span className="text-slate-200">-</span>}</td>
+                                                                        <td className="py-1 px-2 text-center font-bold text-indigo-600">{bd.overall ?? <span className="text-slate-200">-</span>}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
