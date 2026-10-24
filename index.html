@@ -4799,7 +4799,7 @@
                 const src = ctx.createBufferSource();
                 src.buffer = buffer;
                 const gain = ctx.createGain();
-                gain.gain.value = 3.0;
+                gain.gain.value = 4.5; // 原本 3.0，放大 1.5 倍；bell.mp3 峰值 0.264，4.5 倍僅開頭約 4 個取樣點略超過滿格，聽不出來
                 src.connect(gain);
                 gain.connect(ctx.destination);
                 src.start();
