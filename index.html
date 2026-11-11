@@ -3352,6 +3352,16 @@
             { key: 'pixel', label: '像素復古', swatch: ['#E8443A', '#8ED0FF', '#FFC83D'] },
             { key: 'chalk', label: '黑板粉筆', swatch: ['#1F3B2D', '#F4F1E8', '#F6D860'] }
         ];
+        // 以當地 00:00 為界算「過了幾個日曆天」：拖欠天數與扣分起算日不受「今天幾點開網頁」影響
+        const calendarDaysSince = (ts, now = Date.now()) => {
+            const a = new Date(ts); a.setHours(0, 0, 0, 0);
+            const b = new Date(now); b.setHours(0, 0, 0, 0);
+            return Math.round((b.getTime() - a.getTime()) / 86400000);
+        };
+        // 學生頁抽寵物扣的分數（要跟 student.html 的 score - 5 一致）
+        const PET_DRAW_COST = 5;
+        const SCORE_HISTORY_MAX = 200; // 積分歷史最多保留幾筆
+        const DAILY_PENALTY_CAP = 5; // 每人每天因拖欠作業最多扣幾分（每筆拖欠超過 2 天的作業每天扣 1 分，但單日封頂）
         // 內建的 Firebase 設定（ZheTeacher 專案，2026-06-07 由 Claude 代為建立）
         const DEFAULT_FIREBASE_CONFIG = JSON.stringify({
             apiKey: "AIzaSyDtgJnhqUIOPPcWoZfADmqUcBHVWiIEFkU",
@@ -3565,6 +3575,7 @@
             const [cloudBusy, setCloudBusy] = useState(false);
             const [lastSyncTime, setLastSyncTime] = useState(null);
             const [cloudAutoSync, setCloudAutoSync] = useState(true);
+            const [portalReady, setPortalReady] = useState(false); // 登入後第一次收到學生頁快照並處理完，才開始自動上傳
             const [portalSyncStatus, setPortalSyncStatus] = useState('');
             const cloudDbRef = useRef(null);
             const cloudAuthRef = useRef(null);
@@ -3718,25 +3729,26 @@
             };
 
             const performDailySettlement = (currentHw, currentStudentData, currentDebts) => {
-                let newStudentData = [...currentStudentData];
-                let newDebts = [];
-                let bonusCount = 0;
-                let penaltyMsgs = [];
-                let todayTime = Date.now();
-                const oneDayMs = 1000 * 3600 * 24;
+                const newStudentData = currentStudentData.map(s => ({ ...s }));
+                const newDebts = [];
+                const todayTime = Date.now();
 
-                let updatedExistingDebts = currentDebts.map(debt => {
-                    let ts = debt.timestamp || todayTime;
-                    let daysOverdue = Math.floor((todayTime - ts) / oneDayMs);
-                    if (daysOverdue >= 2 && !debt.penalized) {
-                        let sIdx = newStudentData.findIndex(s => s.id === debt.studentId);
-                        if (sIdx > -1) {
-                            newStudentData[sIdx].score = Math.max(0, newStudentData[sIdx].score - 1);
-                            penaltyMsgs.push(`${newStudentData[sIdx].name} 拖欠 [${debt.hwTitle}] 已達 ${daysOverdue} 天，扣 1 分`);
-                        }
-                        return { ...debt, timestamp: ts, penalized: true };
+                // 拖欠超過 2 個日曆天的待補作業：每筆每天扣 1 分（畫面上寫的「每天將扣 1 分積分」）
+                const overdueCount = {}; // studentId -> 拖欠超過 2 天的筆數
+                const updatedExistingDebts = currentDebts.map(debt => {
+                    const { penalized, ...rest } = debt; // 舊版的「已扣過」標記不再使用，順便清掉
+                    const ts = debt.timestamp || todayTime;
+                    if (calendarDaysSince(ts, todayTime) >= 2 && newStudentData.some(s => s.id === debt.studentId)) {
+                        overdueCount[debt.studentId] = (overdueCount[debt.studentId] || 0) + 1;
                     }
-                    return { ...debt, timestamp: ts };
+                    return { ...rest, timestamp: ts };
+                });
+                const penaltyLogs = [];
+                Object.keys(overdueCount).forEach(id => {
+                    const stu = newStudentData.find(s => s.id === Number(id));
+                    const before = stu.score;
+                    stu.score = Math.max(0, before - Math.min(overdueCount[id], DAILY_PENALTY_CAP));
+                    penaltyLogs.push({ name: stu.name, count: overdueCount[id], delta: stu.score - before });
                 });
 
                 currentHw.forEach(hw => {
@@ -3756,21 +3768,30 @@
                     }
                 });
 
+                const bonusNames = [];
                 const settlementCount = Math.min(STUDENT_COUNT, newStudentData.length);
+                const activeHomeworks = currentHw.filter(hw => hw.title && hw.title.trim() !== "");
                 for (let i = 0; i < settlementCount; i++) {
-                     const activeHomeworks = currentHw.filter(hw => hw.title.trim() !== "");
                      if (activeHomeworks.length > 0 && activeHomeworks.every(hw => hw.status[i] === 2)) {
                          newStudentData[i].score += 1;
-                         bonusCount++;
+                         bonusNames.push(newStudentData[i].name);
                      }
                 }
+
+                // 把這次結算的加扣分寫進積分歷史，才看得到「到底有沒有扣」
+                const stamp = new Date().toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour12: false, hour: '2-digit', minute: '2-digit' });
+                const penalized = penaltyLogs.filter(p => p.delta < 0);
+                const logs = penalized.map((p, i) => ({ id: todayTime + i, time: stamp, names: p.name, delta: p.delta, reason: `每日結算：拖欠作業 ${p.count} 筆，每筆扣 1 分，單日最多扣 ${DAILY_PENALTY_CAP} 分` }));
+                if (bonusNames.length > 0) logs.push({ id: todayTime + 1000, time: stamp, names: bonusNames.join(', '), delta: 1, reason: '每日結算：作業全部訂正完成' });
+                if (logs.length > 0) setScoreHistory(prev => [...logs, ...prev].slice(0, SCORE_HISTORY_MAX));
 
                 setHomeworks(currentHw.map(hw => ({ ...hw, status: Array(STUDENT_COUNT).fill(0), title: '' })));
                 setStudentData(newStudentData);
                 setOutstandingHomeworks([...updatedExistingDebts, ...newDebts]);
-                
-                let finalMsg = `📅 早安！昨日結算完成。\n✨ 共有 ${bonusCount} 人作業完美訂正 +1 分！`;
-                if (penaltyMsgs.length > 0) finalMsg += `\n⚠️ 系統已自動對 ${penaltyMsgs.length} 筆拖欠超過兩天的作業進行扣分。`;
+
+                let finalMsg = `📅 早安！昨日結算完成。\n✨ 共有 ${bonusNames.length} 人作業完美訂正 +1 分！`;
+                const overdueTotal = Object.values(overdueCount).reduce((a, b) => a + b, 0);
+                if (overdueTotal > 0) finalMsg += `\n⚠️ 拖欠超過兩天的作業共 ${overdueTotal} 筆，每筆扣 1 分、每人每天最多扣 ${DAILY_PENALTY_CAP} 分：` + (penalized.length > 0 ? penalized.map(p => `${p.name} ${p.delta}`).join('、') : '相關學生分數已是 0');
                 setDailyUpdateMsg(finalMsg);
                 setTimeout(() => setDailyUpdateMsg(""), 10000);
             };
@@ -4503,11 +4524,11 @@
                 if (selectedForScore.size === 0) return;
                 let affectedNames = [];
                 setStudentData(prev => prev.map(s => { if (selectedForScore.has(s.id)) { affectedNames.push(s.name); return { ...s, score: Math.max(0, s.score + delta) }; } return s; }));
-                setScoreHistory(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('zh-TW', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}), names: affectedNames.join(', '), delta: delta, reason: reason }, ...prev].slice(0, 50)); 
+                setScoreHistory(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('zh-TW', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}), names: affectedNames.join(', '), delta: delta, reason: reason }, ...prev].slice(0, SCORE_HISTORY_MAX)); 
             };
             const applyScoreToAll = (delta, reason = "全班加分") => { 
                 setStudentData(prev => prev.map(s => ({ ...s, score: Math.max(0, s.score + delta) }))); 
-                setScoreHistory(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('zh-TW', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}), names: "全班", delta: delta, reason: reason }, ...prev].slice(0, 50));
+                setScoreHistory(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('zh-TW', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}), names: "全班", delta: delta, reason: reason }, ...prev].slice(0, SCORE_HISTORY_MAX));
             };
             const handleManualScoreInput = () => { const score = parseInt(customScoreInput); if (!isNaN(score) && score !== 0) { applyScoreToSelected(score, specialReason || "特殊表現"); setCustomScoreInput(""); setSpecialReason(""); } };
 
@@ -4961,7 +4982,7 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                     return { id: timestamp + idx + Math.random(), date: today, timestamp: timestamp, ...record };
                 });
                 setStudentData(newStudentData);
-                if (newLogs.length > 0) setScoreHistory(prev => [...newLogs, ...prev].slice(0, 50));
+                if (newLogs.length > 0) setScoreHistory(prev => [...newLogs, ...prev].slice(0, SCORE_HISTORY_MAX));
                 setBehaviorRecords(prev => [...recordsToSave, ...prev]);
                 setPendingRecords(null); setSpeechToTextContent(""); 
                 alert("✅ 紀錄儲存完畢！");
@@ -5045,8 +5066,8 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
             const completeAllReflectionsForStudent = (studentId) => { setSelfReflections(prev => prev.map(sr => sr.studentId === studentId && !sr.isCompleted ? { ...sr, isCompleted: true } : sr)); };
 
             const warningDebts = useMemo(() => {
-                const oneDayMs = 1000 * 3600 * 24; const now = Date.now();
-                return outstandingHomeworks.filter(d => Math.floor((now - (d.timestamp || now)) / oneDayMs) >= 2);
+                const now = Date.now();
+                return outstandingHomeworks.filter(d => calendarDaysSince(d.timestamp || now, now) >= 2);
             }, [outstandingHomeworks, currentTime]);
             
             // 分組工具：依模式產生分組
@@ -5152,6 +5173,31 @@ h1{font-size:22px;margin-bottom:18px}
                 return map;
             }, [studentData]);
 
+            // 學生在學生頁抽寵物時，雲端會寫入寵物編號並把該生分數 -5。這裡只把「新抽到寵物」套回老師端：
+            // 記下寵物編號、從本機分數扣掉抽寵費用。絕對不能直接拿雲端分數蓋掉本機分數：
+            // 雲端分數常常比本機舊（剛做完每日結算、或 4 秒內還沒上傳的加扣分），蓋回去等於結算白做。
+            const applyPortalPetDraws = (portalStudents) => {
+                let assigned = {};
+                try { assigned = JSON.parse(localStorage.getItem('class502_pet_assignments_v1') || '{}') || {}; } catch (e) {}
+                const changes = {};
+                portalStudents.forEach(ps => {
+                    if (!ps || !ps.petLineId || ps.petLineId === (assigned[ps.id] || 0)) return;
+                    changes[ps.id] = { petLineId: ps.petLineId, isNewDraw: !assigned[ps.id], cloudScore: ps.score };
+                });
+                const ids = Object.keys(changes);
+                if (!ids.length) return;
+                const nextAssigned = { ...assigned };
+                ids.forEach(id => { nextAssigned[id] = changes[id].petLineId; });
+                localStorage.setItem('class502_pet_assignments_v1', JSON.stringify(nextAssigned));
+                setPetAssignments(prev => { const next = { ...prev }; ids.forEach(id => { next[id] = changes[id].petLineId; }); return next; });
+                setStudentData(prev => prev.map(s => {
+                    const c = changes[s.id];
+                    // 本機分數跟雲端分數一模一樣＝抽寵費用已經包含在內（例如新裝置剛從雲端抓資料），不重複扣
+                    if (!c || !c.isNewDraw || c.cloudScore === s.score) return s;
+                    return { ...s, score: Math.max(0, s.score - PET_DRAW_COST) };
+                }));
+            };
+
             // 雲端：初始化 Firebase
             const initCloud = (configText) => {
                 if (typeof firebase === 'undefined') { setCloudStatus("❌ Firebase 函式庫尚未載入，請檢查網路連線。"); return false; }
@@ -5168,34 +5214,12 @@ h1{font-size:22px;margin-bottom:18px}
                             setCloudUser({ uid: user.uid, displayName: user.displayName || "老師", email: user.email || "", photoURL: user.photoURL || "" });
                             setCloudStatus(`✅ 已登入：${user.displayName || user.email}。可上傳或還原資料。`);
                             // 監聽 portal：學生抽寵物後自動同步回老師端
+                            setPortalReady(false);
                             cloudDbRef.current.collection('portal').doc('class502').onSnapshot(snap => {
-                                if (!snap.exists) return;
-                                const portalStudents = snap.data().students || [];
-                                setPetAssignments(prev => {
-                                    const next = { ...prev };
-                                    let changed = false;
-                                    portalStudents.forEach(ps => {
-                                        if (ps.petLineId && ps.petLineId !== (prev[ps.id] || 0)) {
-                                            next[ps.id] = ps.petLineId;
-                                            changed = true;
-                                        }
-                                    });
-                                    if (changed) localStorage.setItem('class502_pet_assignments_v1', JSON.stringify(next));
-                                    return changed ? next : prev;
-                                });
-                                // 同步扣分（學生抽寵物花的 5 分）
-                                setStudentData(prev => {
-                                    const next = prev.map(s => {
-                                        const ps = portalStudents.find(p => p.id === s.id);
-                                        if (ps && ps.score !== s.score && ps.petLineId && !prev.find(p=>p.id===s.id)?.petLineId) {
-                                            return { ...s, score: ps.score };
-                                        }
-                                        return s;
-                                    });
-                                    return next;
-                                });
-                            });
-                        } else { setCloudUser(null); setCloudStatus("尚未登入，請按 Google 登入。"); }
+                                if (snap.exists) applyPortalPetDraws(snap.data().students || []);
+                                setPortalReady(true);
+                            }, () => setPortalReady(true));
+                        } else { setCloudUser(null); setPortalReady(false); setCloudStatus("尚未登入，請按 Google 登入。"); }
                     });
                     setCloudReady(true);
                     return true;
@@ -5329,10 +5353,10 @@ h1{font-size:22px;margin-bottom:18px}
             useEffect(() => { if (isLoaded) localStorage.setItem('class502_cloud_autosync', cloudAutoSync ? 'true' : 'false'); }, [cloudAutoSync, isLoaded]);
             // 自動上傳：資料變動後 4 秒上傳（登入且開啟自動同步時）
             useEffect(() => {
-                if (!isLoaded || !cloudUser || !cloudAutoSync) return;
+                if (!isLoaded || !cloudUser || !cloudAutoSync || !portalReady) return;
                 const t = setTimeout(() => pushToCloud(true), 4000);
                 return () => clearTimeout(t);
-            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, savedSeatLayouts, studentTraits, globalSeatRules, examSchedule, petNames, petAssignments, savedGroups, attendanceRecords, gradeSubjects, gradeScores, gradeItems, helperRecords, classDuties, calendarData, calendarFontSize, notices, noticeFontSize, uiTheme, boardNotes, boardHeading, moduleConfig, classNameTitle, essayTopics, essayResults, cloudUser, cloudAutoSync, isLoaded]);
+            }, [studentData, homeworks, outstandingHomeworks, scoreHistory, rewardsList, redeemHistory, behaviorRecords, selfReflections, seatPositions, savedSeatLayouts, studentTraits, globalSeatRules, examSchedule, petNames, petAssignments, savedGroups, attendanceRecords, gradeSubjects, gradeScores, gradeItems, helperRecords, classDuties, calendarData, calendarFontSize, notices, noticeFontSize, uiTheme, boardNotes, boardHeading, moduleConfig, classNameTitle, essayTopics, essayResults, cloudUser, cloudAutoSync, portalReady, isLoaded]);
 
             // 動態過濾底部導覽列 (只顯示開啟的模組)
             const availableTabs = [
@@ -5654,7 +5678,7 @@ h1{font-size:22px;margin-bottom:18px}
                                         </div>
                                         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
                                             {warningDebts.map(debt => {
-                                                const days = Math.floor((Date.now() - (debt.timestamp || Date.now())) / (1000 * 3600 * 24));
+                                                const days = calendarDaysSince(debt.timestamp || Date.now());
                                                 return (
                                                     <div key={debt.id} className="flex flex-col p-3 bg-white border border-rose-200 rounded-xl shadow-sm">
                                                         <div className="flex items-center gap-2 mb-1">
@@ -5662,7 +5686,7 @@ h1{font-size:22px;margin-bottom:18px}
                                                             <span className="font-bold text-slate-800">{debt.studentName}</span>
                                                         </div>
                                                         <div className="text-sm font-bold text-rose-600 mb-1">{debt.hwTitle}</div>
-                                                        <div className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg mt-auto">自 {debt.date} 起拖欠 ({days}天)<br/><span className="text-rose-500">每天將扣 1 分積分</span></div>
+                                                        <div className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg mt-auto">自 {debt.date} 起拖欠 ({days}天)<br/><span className="text-rose-500">每天扣 1 分（每人單日最多扣 {DAILY_PENALTY_CAP} 分）</span></div>
                                                     </div>
                                                 )
                                             })}
@@ -7063,6 +7087,30 @@ h1{font-size:22px;margin-bottom:18px}
                                         <div style={{ fontSize: noticeFontSize }} className="text-white font-bold leading-snug whitespace-pre-wrap break-words">{n.text}</div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {showScoreHistory && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setShowScoreHistory(false)}>
+                            <div className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-pop">
+                                <div className="p-4 bg-slate-800 text-white flex justify-between items-center shrink-0">
+                                    <h3 className="font-bold flex items-center gap-2 text-lg"><Icon component={Icons.History} size={20}/> 積分歷史紀錄</h3>
+                                    <button onClick={() => setShowScoreHistory(false)} className="hover:text-slate-300"><Icon component={Icons.X}/></button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                                    {scoreHistory.length === 0 && <div className="text-center text-slate-400 py-8">還沒有加扣分紀錄。</div>}
+                                    {scoreHistory.map(h => (
+                                        <div key={h.id} className="flex items-start gap-3 bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                            <div className={`shrink-0 min-w-[3rem] text-center font-black text-lg ${h.delta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{h.delta > 0 ? '+' : ''}{h.delta}</div>
+                                            <div className="min-w-0">
+                                                <div className="text-xs text-slate-400">{h.time}</div>
+                                                <div className="font-bold text-slate-700 break-words">{h.names}</div>
+                                                <div className="text-sm text-slate-500">{h.reason}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}
