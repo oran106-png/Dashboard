@@ -1809,6 +1809,7 @@
 [data-theme="bulletin"][data-theme="bulletin"][data-theme="bulletin"][data-theme="bulletin"] .hover\:text-rose-600:hover { color: #B14F22 !important; }
 [data-theme="bulletin"][data-theme="bulletin"][data-theme="bulletin"][data-theme="bulletin"] .ring-rose-400 { --tw-ring-color: #DC7A3F !important; }
 [data-theme="bulletin"][data-theme="bulletin"][data-theme="bulletin"][data-theme="bulletin"] .text-blue-400 { color: #DD6C54 !important; }
+[data-theme="dark"][data-theme="dark"][data-theme="dark"][data-theme="dark"] .debt-rail-low { background-color: #FBBF24 !important; color: #1F1300 !important; }
 </style>
 <!-- THEME_CSS_EXTRA_END -->
 <!-- THEME_CSS_NEW_START -->
@@ -3409,7 +3410,7 @@
             tabExam: true, tabSeats: true, tabScore: true, tabRedeem: true, tabRecords: true,
             tabPets: true, tabGroups: true, tabBoard: true, tabQR: true, tabEssay: true, tabAttendance: true,
             tabGrades: true, tabHelpers: true, tabDuties: true, tabCalendar: true,
-            notice: true
+            notice: true, debtRail: true
         };
 
         const ATTENDANCE_TYPES = [
@@ -5062,6 +5063,17 @@ body{font-family:'標楷體','DFKai-SB',serif;background:#fff}
                 return groups;
             }, [selfReflections]);
 
+            // 左側浮動欄：非自由之身的學生，數字＝待補清單筆數＋今天還沒完成（缺交或未訂正）的作業欄數
+            const debtRailItems = studentData
+                .map((s, index) => {
+                    const debtCount = groupedDebts[s.id] ? groupedDebts[s.id].debts.length : 0;
+                    const todayCount = activeHomeworks.filter(hw => hw.status[index] !== 2).length;
+                    const reflectionCount = groupedReflections[s.id] ? groupedReflections[s.id].items.length : 0;
+                    return { id: s.id, name: s.name, debtCount, todayCount, reflectionCount, owed: debtCount + todayCount };
+                })
+                .filter(it => !freeStudents.some(f => f.id === it.id));
+            const showDebtRail = currentTab === 'dashboard' && moduleConfig.debtRail !== false && debtRailItems.length > 0;
+
             const clearAllDebtsForStudent = (studentId) => { setOutstandingHomeworks(prev => prev.filter(d => d.studentId !== studentId)); };
             const completeAllReflectionsForStudent = (studentId) => { setSelfReflections(prev => prev.map(sr => sr.studentId === studentId && !sr.isCompleted ? { ...sr, isCompleted: true } : sr)); };
 
@@ -5444,7 +5456,7 @@ h1{font-size:22px;margin-bottom:18px}
                     )}
 
                     {/* Main Content */}
-                    <main className="flex-1 p-4 max-w-7xl mx-auto w-full space-y-6">
+                    <main className={`flex-1 p-4 max-w-7xl mx-auto w-full space-y-6 ${showDebtRail ? 'pl-[4.5rem]' : ''}`}>
                         {}
                         {currentTab === 'dashboard' && (
                             <div className="animate-slide-up space-y-6">
@@ -7068,6 +7080,20 @@ h1{font-size:22px;margin-bottom:18px}
                         )}
                     </main>
 
+                    {showDebtRail && (
+                        <div className="fixed left-1 md:left-3 top-24 z-30 w-12 bg-white border border-slate-200 rounded-2xl shadow-lg py-1.5 px-1 flex flex-col items-stretch">
+                            <div className="text-[10px] font-bold text-slate-600 text-center leading-4 pb-1 mb-0.5 border-b border-slate-200">欠繳</div>
+                            <div className="flex flex-col gap-0.5 overflow-y-auto no-scrollbar max-h-[calc(100vh-14.5rem)]">
+                                {debtRailItems.map(it => (
+                                    <div key={it.id} title={`${it.id}號 ${it.name}：待補 ${it.debtCount} 項、今天未完成 ${it.todayCount} 項${it.reflectionCount ? `、自述單 ${it.reflectionCount} 張` : ''}`} className="flex items-center justify-between gap-0.5 px-0.5 leading-5">
+                                        <span className="text-xs font-black text-slate-700 tabular-nums">{it.id}</span>
+                                        <span className={`min-w-[1.25rem] h-5 px-1 rounded-full text-[11px] font-black text-center tabular-nums ${it.owed === 0 ? 'bg-slate-200 text-slate-600' : it.owed >= 5 ? 'bg-rose-500 text-white' : it.owed >= 3 ? 'bg-orange-500 text-white' : 'bg-yellow-400 text-yellow-900 debt-rail-low'}`}>{it.owed === 0 ? '自' : it.owed}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {noticeFocus && (
                         <div className="fixed inset-0 z-[100] bg-[#1f3b2d] p-4 md:p-8 flex flex-col">
                             <div className="flex items-center gap-3 flex-wrap mb-4 shrink-0">
@@ -7393,7 +7419,8 @@ h1{font-size:22px;margin-bottom:18px}
                                                 { key: 'freeStudents', label: '自由之身名單' },
                                                 { key: 'warningDebts', label: '嚴重拖欠警示' },
                                                 { key: 'outstandingDebts', label: '待補作業追蹤' },
-                                                { key: 'notice', label: '留言版（給學生的指令）' }
+                                                { key: 'notice', label: '留言版（給學生的指令）' },
+                                                { key: 'debtRail', label: '左側欠繳浮動欄（非自由之身）' }
                                             ].map(mod => (
                                                 <label key={mod.key} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${moduleConfig[mod.key] !== false ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
                                                     <input type="checkbox" checked={moduleConfig[mod.key] !== false} onChange={(e) => setModuleConfig({...moduleConfig, [mod.key]: e.target.checked})} className="w-5 h-5 accent-blue-600 rounded cursor-pointer" />
